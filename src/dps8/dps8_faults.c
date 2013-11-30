@@ -208,8 +208,9 @@ void check_events (void)
 {
     events.any = events.int_pending || events.low_group || events.group7;
     if (events.any)
-        log_msg(NOTIFY_MSG, "CU", "check_events: event(s) found (%d,%d,%d).\n", events.int_pending, events.low_group, events.group7);
-    
+      {
+        sim_debug(DBG_NOTIFY, & cpu_dev, "CU: check_events: event(s) found (%d,%d,%d).\n", events.int_pending, events.low_group, events.group7);
+      }
     return;
 }
 
@@ -226,26 +227,26 @@ void fault_gen(int f)
     
 #if 0
     if (f == oob_fault) {
-        log_msg(ERR_MSG, "CU::fault", "Faulting for internal bug\n");
+        sim_debug(DBG_ERR, & cpu_dev, "CU fault: Faulting for internal bug\n");
         f = trouble_fault;
         (void) cancel_run(STOP_BUG);
     }
 #endif
     
     if (f < 1 || f > 32) {
-        //log_msg(ERR_MSG, "CU::fault", "Bad fault # %d\n", f);
+        //sim_debug(DBG_ERR, & cpu_dev, "CU fault: Bad fault # %d\n", f);
         cancel_run(STOP_BUG);
         return;
     }
     group = fault2group[f];
     if (group < 1 || group > 7) {
-        //log_msg(ERR_MSG, "CU::fault", "Internal error.\n");
+        //sim_debug(DBG_ERR, & cpu_dev, "CU fault: Internal error.\n");
         cancel_run(STOP_BUG);
         return;
     }
     
     if (fault_gen_no_fault) {
-        //log_msg(DEBUG_MSG, "CU::fault", "Ignoring fault # %d in group %d\n", f, group);
+        //sim_debug(DBG_DEBUG, & cpu_dev, "CU fault: Ignoring fault # %d in group %d\n", f, group);
         return;
     }
     
@@ -253,15 +254,15 @@ void fault_gen(int f)
         FR |= fr_ill_proc;
     
     events.any = 1;
-    //log_msg(DEBUG_MSG, "CU::fault", "Recording fault # %d in group %d\n", f, group);
+    //sim_debug(DBG_DEBUG, & cpu_dev, "CU fault: Recording fault # %d in group %d\n", f, group);
     
     // Note that we never simulate a (hardware) op_not_complete_fault
     if (MR.mr_enable && (f == FAULT_ONC || MR.fault_reset)) {
         if (MR.strobe) {
-            log_msg(INFO_MSG, "CU::fault", "Clearing MR.strobe.\n");
+            sim_debug(DBG_INFO, & cpu_dev, "CU fault: Clearing MR.strobe.\n");
             MR.strobe = 0;
         } else
-            log_msg(INFO_MSG, "CU::fault", "MR.strobe was already unset.\n");
+            sim_debug(DBG_INFO, & cpu_dev, "CU fault: MR.strobe was already unset.\n");
     }
     
     if (group == 7) {
@@ -276,13 +277,13 @@ void fault_gen(int f)
             // FIXME: || events.xed AND/OR || cpu.cycle == FAULT_EXEC_cycle
             f = FAULT_TRB;
             group = fault2group[f];
-            log_msg(WARN_MSG, "CU::fault", "Double fault:  Recording current fault as a trouble fault (fault # %d in group %d).\n", f, group);
+            sim_debug(DBG_WARN, & cpu_dev, "CU fault: Double fault:  Recording current fault as a trouble fault (fault # %d in group %d).\n", f, group);
             cpu.cycle = FAULT_cycle;
             //cancel_run(STOP_DIS); // BUG: not really
         } else {
             if (events.fault[group]) {
                 // todo: error, unhandled fault
-                log_msg(WARN_MSG, "CU::fault", "Found unhandled prior fault #%d in group %d.\n", events.fault[group], group);
+                sim_debug(DBG_WARN, & cpu_dev, "CU fault: Found unhandled prior fault #%d in group %d.\n", events.fault[group], group);
             }
             if (cpu.cycle == EXEC_cycle) {
                 // don't execute any pending odd half of an instruction pair
@@ -308,7 +309,7 @@ static int fault_check_group(int group)
 {
     
     if (group < 1 || group > 7) {
-        log_msg(ERR_MSG, "CU::fault-check-group", "Bad group # %d\n", group);
+        sim_debug(DBG_ERR, & cpu_dev, "CU fault-check-group: Bad group # %d\n", group);
         cancel_run(STOP_BUG);
         return 1;
     }

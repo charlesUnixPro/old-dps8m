@@ -93,15 +93,13 @@ void disk_init(void)
 
 int disk_iom_cmd(chan_devinfo* devinfop)
 {
-    const char* moi = "DISK::iom_cmd";
-    
     int chan = devinfop->chan;
     int dev_cmd = devinfop->dev_cmd;
     int dev_code = devinfop->dev_code;
     int* majorp = &devinfop->major;
     int* subp = &devinfop->substatus;
     
-    log_msg(DEBUG_MSG, moi, "Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
+    sim_debug(DBG_DEBUG, & disk_dev, "disk_iom_cmd: Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
             chan, dev_cmd, dev_code);
     
     devinfop->is_read = 1;  // FIXME
@@ -113,7 +111,7 @@ int disk_iom_cmd(chan_devinfo* devinfop)
         devinfop->have_status = 1;
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
-        log_msg(ERR_MSG, moi, "Bad channel %d\n", chan);
+        sim_debug(DBG_ERR, & disk_dev, "disk_iom_cmd: Bad channel %d\n", chan);
         cancel_run(STOP_BUG);
         return 1;
     }
@@ -123,7 +121,7 @@ int disk_iom_cmd(chan_devinfo* devinfop)
         devinfop->have_status = 1;
         *majorp = 05;
         *subp = 2;
-        log_msg(ERR_MSG, moi, "Internal error, no device and/or unit for channel 0%o\n", chan);
+        sim_debug(DBG_ERR, & disk_dev, "disk_iom_cmd: Internal error, no device and/or unit for channel 0%o\n", chan);
         cancel_run(STOP_BUG);
         return 1;
     }
@@ -131,7 +129,7 @@ int disk_iom_cmd(chan_devinfo* devinfop)
         devinfop->have_status = 1;
         *majorp = 05;   // Command Reject
         *subp = 2;      // Invalid Device Code
-        log_msg(ERR_MSG, moi, "Bad dev unit-num 0%o (%d decimal)\n", dev_code, dev_code);
+        sim_debug(DBG_ERR, & disk_dev, "disk_iom_cmd: Bad dev unit-num 0%o (%d decimal)\n", dev_code, dev_code);
         cancel_run(STOP_BUG);
         return 1;
     }
@@ -155,7 +153,7 @@ int disk_iom_cmd(chan_devinfo* devinfop)
             //  057 maybe read id
             //  072 unload -- disk_control.list
         case 040:       // CMD 40 -- Reset Status
-            log_msg(NOTIFY_MSG, moi, "Reset Status.\n");
+            sim_debug(DBG_NOTIFY, & disk_dev, "disk_iom_cmd: Reset Status.\n");
             *majorp = 0;
             *subp = 0;
             //
@@ -168,11 +166,11 @@ int disk_iom_cmd(chan_devinfo* devinfop)
             //
             return 0;
         default: {
-            log_msg(ERR_MSG, moi, "DISK devices not implemented.\n");
+            sim_debug(DBG_ERR, & disk_dev, "disk_iom_cmd: DISK devices not implemented.\n");
             devinfop->have_status = 1;
             *majorp = 05;       // Command reject
             *subp = 1;          // invalid opcode
-            log_msg(ERR_MSG, moi, "Unknown command 0%o\n", dev_cmd);
+            sim_debug(DBG_ERR, & disk_dev, "disk_iom_cmd: Unknown command 0%o\n", dev_cmd);
             cancel_run(STOP_BUG);
             return 1;
         }
@@ -185,13 +183,12 @@ int disk_iom_cmd(chan_devinfo* devinfop)
 
 int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
 {
-    const char* moi = "DISK::iom_io";
-    // log_msg(DEBUG_MSG, moi, "Chan 0%o\n", chan);
+    // sim_debug(DBG_DEBUG, & disk_dev, "disk_iom_io: Chan 0%o\n", chan);
     
     if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
-        log_msg(ERR_MSG, moi, "Bad channel %d\n", chan);
+        sim_debug(DBG_ERR, & disk_dev, "disk_iom_io: Bad channel %d\n", chan);
         return 1;
     }
     
@@ -199,7 +196,7 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;
-        log_msg(ERR_MSG, moi, "Internal error, no device and/or unit for channel 0%o\n", chan);
+        sim_debug(DBG_ERR, & disk_dev, "disk_iom_io: Internal error, no device and/or unit for channel 0%o\n", chan);
         return 1;
     }
 #ifndef QUIET_UNUSED
@@ -209,7 +206,7 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     
     *majorp = 013;  // MPC Device Data Alert
     *subp = 02;     // Inconsistent command
-    log_msg(ERR_MSG, moi, "Unimplemented.\n");
+    sim_debug(DBG_ERR, & disk_dev, "disk_iom_io: Unimplemented.\n");
     cancel_run(STOP_BUG);
     return 1;
 }

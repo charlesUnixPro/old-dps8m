@@ -222,20 +222,13 @@ control board in the
 #define N_SCU_UNITS 1
 UNIT scu_unit [N_SCU_UNITS] = {{ UDATA(NULL, 0, 0) }};
 
-#define DEBUG_NOTIFY (1 << 0)
-#define DEBUG_INFO (1 << 1)
-#define DEBUG_ERR (1 << 2)
-#define DEBUG_DEBUG (1 << 3)
-#define DEBUG_WARN (1 << 4)
-#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN)
-
 static DEBTAB scu_dt [] =
   {
-    { "NOTIFY", DEBUG_NOTIFY },
-    { "INFO", DEBUG_INFO },
-    { "ERR", DEBUG_ERR },
-    { "DEBUG", DEBUG_DEBUG },
-    { "ALL", DEBUG_ALL }, // don't move as it messes up DBG message
+    { "NOTIFY", DBG_NOTIFY },
+    { "INFO", DBG_INFO },
+    { "ERR", DBG_ERR },
+    { "DEBUG", DBG_DEBUG },
+    { "ALL", DBG_ALL }, // don't move as it messes up DBG message
     { NULL, 0 }
   };
 
@@ -350,7 +343,7 @@ static int scu_hw_arg_check(const char *tag, t_uint64 addr, int port)
     // Verify that HW could have received signal
     
     if (port < 0 || port > 7) {
-        sim_debug (DEBUG_ERR, &scu_dev, "%s: Port %d from sscr is out of range 0..7\n", tag, port);
+        sim_debug (DBG_ERR, &scu_dev, "%s: Port %d from sscr is out of range 0..7\n", tag, port);
         cancel_run(STOP_BUG);
         return 2;
     }
@@ -365,7 +358,7 @@ static int scu_hw_arg_check(const char *tag, t_uint64 addr, int port)
     int rcv_port = cpu_ports.scu_port;
     
     if (rcv_port < 0 || rcv_port > 7)  {
-        sim_debug (DEBUG_ERR, &scu_dev, "%s: CPU is not connected to any port.  Port %d does nto exist on the SCU.\n", tag, rcv_port);
+        sim_debug (DBG_ERR, &scu_dev, "%s: CPU is not connected to any port.  Port %d does nto exist on the SCU.\n", tag, rcv_port);
         cancel_run(STOP_WARN);
         return 1;
     }
@@ -374,7 +367,7 @@ static int scu_hw_arg_check(const char *tag, t_uint64 addr, int port)
     
     // Verify that HW could have received signal
     if (cpu_port < 0 || cpu_port > 7) {
-        sim_debug (DEBUG_ERR, &scu_dev, "%s: Port %d is connected to nonsense port %d of CPU %d\n", tag, rcv_port, cpu_port, scu.ports[rcv_port].idnum);
+        sim_debug (DBG_ERR, &scu_dev, "%s: Port %d is connected to nonsense port %d of CPU %d\n", tag, rcv_port, cpu_port, scu.ports[rcv_port].idnum);
         cancel_run(STOP_WARN);
         return 1;
     }
@@ -413,7 +406,7 @@ int scu_set_mask(t_uint64 addr, int port)
             port_pima = p;
             if (port != rcv_port)
               {
-                sim_debug (DEBUG_DEBUG, &scu_dev, "%s: Found MASK %d assigned to %s on port %d\n", moi, p, adev2text(scu.ports[port].type), port);
+                sim_debug (DBG_DEBUG, &scu_dev, "%s: Found MASK %d assigned to %s on port %d\n", moi, p, adev2text(scu.ports[port].type), port);
               }
             ++ port_found;
         }
@@ -421,32 +414,32 @@ int scu_set_mask(t_uint64 addr, int port)
 #ifndef QUIET_UNUSED
             cpu_pima = p;
 #endif
-             sim_debug (DEBUG_DEBUG, &scu_dev, "%s: Found MASK %d assigned to invoking CPU on port %d\n", moi, p, rcv_port);
+             sim_debug (DBG_DEBUG, &scu_dev, "%s: Found MASK %d assigned to invoking CPU on port %d\n", moi, p, rcv_port);
             ++ cpu_found;
         }
     }
     
     if (! cpu_found) {
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: No masks assigned to cpu on port %d\n", moi, rcv_port);
+        sim_debug (DBG_WARN, &scu_dev, "%s: No masks assigned to cpu on port %d\n", moi, rcv_port);
         fault_gen(FAULT_STR);
         return 1;
     }
     if (cpu_found > 1) {
         // Not legal for Multics
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: Multiple masks assigned to cpu on port %d\n", moi, rcv_port);
+        sim_debug (DBG_WARN, &scu_dev, "%s: Multiple masks assigned to cpu on port %d\n", moi, rcv_port);
         cancel_run(STOP_WARN);
     }
     if (! port_found) {
-        sim_debug (DEBUG_DEBUG, &scu_dev, "%s: No masks assigned to port %d\n", moi, port);
+        sim_debug (DBG_DEBUG, &scu_dev, "%s: No masks assigned to port %d\n", moi, port);
         return 0;
     }
     if (port_found > 1)
       {
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: Multiple masks assigned to port %d\n", moi, rcv_port);
+        sim_debug (DBG_WARN, &scu_dev, "%s: Multiple masks assigned to port %d\n", moi, rcv_port);
       }
     
     if (port_pima > 1) {
-        sim_debug (DEBUG_ERR, &scu_dev, "%s: Cannot write to masks other than zero and one: %d\n", moi, port_pima);
+        sim_debug (DBG_ERR, &scu_dev, "%s: Cannot write to masks other than zero and one: %d\n", moi, port_pima);
         cancel_run(STOP_BUG);
         return 1;
     }
@@ -455,7 +448,7 @@ int scu_set_mask(t_uint64 addr, int port)
     scu.interrupts[port_pima].exec_intr_mask = 0;
     scu.interrupts[port_pima].exec_intr_mask |= (getbits36(reg_A, 0, 16) << 16);
     scu.interrupts[port_pima].exec_intr_mask |= getbits36(reg_Q, 0, 16);
-    //sim_debug (DEBUG_DEBUG, &scu_dev, "%s: PIMA %c: EI mask set to %s\n", moi, port_pima + 'A', bin2text(scu.interrupts[port_pima].exec_intr_mask, 32));
+    //sim_debug (DBG_DEBUG, &scu_dev, "%s: PIMA %c: EI mask set to %s\n", moi, port_pima + 'A', bin2text(scu.interrupts[port_pima].exec_intr_mask, 32));
     return 0;
 }
 
@@ -505,7 +498,7 @@ int scu_get_mode_register(t_uint64 addr)
     // BUG: is it really OK for all ports to be disabled?
     if (scu_hw_arg_check("get-mode-register", addr, 0) != 0)
       {
-        sim_debug (DEBUG_ERR, &scu_dev, "get-mode-register: But proceeding anyway");
+        sim_debug (DBG_ERR, &scu_dev, "get-mode-register: But proceeding anyway");
       }
 #endif
     
@@ -548,7 +541,7 @@ int scu_get_config_switches(t_uint64 addr)
 #if 1
     if (scu_hw_arg_check(tag, addr, 0) != 0)
       {
-        sim_debug (DEBUG_ERR, &scu_dev, "scu_get_config_switches: But proceeding anyway");
+        sim_debug (DBG_ERR, &scu_dev, "scu_get_config_switches: But proceeding anyway");
       }
 #endif
     int rcv_port = cpu_ports.scu_port;  // port-no that instr came in on
@@ -576,11 +569,11 @@ int scu_get_config_switches(t_uint64 addr)
         reg_A = setbits36(reg_A, 32+i, 1, enabled); // enable masks for ports 0-3
         if (enabled)
           {
-            sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is enabled, it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
+            sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is enabled, it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
           }
         else
           {
-            sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is disabled.\n", moi, port);
+            sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is disabled.\n", moi, port);
           }
     }
     
@@ -594,11 +587,11 @@ int scu_get_config_switches(t_uint64 addr)
         reg_Q = setbits36(reg_Q, 68-36+i, 1, enabled);  // enable masks for ports 4-7
         if (enabled)
           {
-            sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is enabled, it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
+            sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is enabled, it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
           }
         else
           {
-            sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is disabled.\n", moi, port);
+            sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is disabled.\n", moi, port);
           }
     }
     
@@ -626,7 +619,7 @@ int scu_set_config_switches(t_uint64 addr)
     // See scr.incl.pl1
     
     if (scu.mode != 1) {
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: SCU mode is 'PROGRAM', not 'MANUAL' -- sscr not allowed to set switches.\n", moi);
+        sim_debug (DBG_WARN, &scu_dev, "%s: SCU mode is 'PROGRAM', not 'MANUAL' -- sscr not allowed to set switches.\n", moi);
         cancel_run(STOP_BUG);
     }
     
@@ -655,11 +648,11 @@ int scu_set_config_switches(t_uint64 addr)
           {
             if (! scu.ports[port].is_enabled)
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d still disabled.\n", moi, port);
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d still disabled.\n", moi, port);
               }
             else
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d now disabled.\n", moi, port);
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d now disabled.\n", moi, port);
               }
             scu.ports[port].is_enabled = 0;
           }
@@ -667,12 +660,12 @@ int scu_set_config_switches(t_uint64 addr)
           {
             if (!scu.ports[port].is_enabled)
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is now enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is now enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
                 scu.ports[port].is_enabled = 1;
               }
             else
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is still enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is still enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
               }
           }
       }
@@ -693,11 +686,11 @@ int scu_set_config_switches(t_uint64 addr)
           {
             if (!scu.ports[port].is_enabled)
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d still disabled.\n", moi, port);
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d still disabled.\n", moi, port);
               }
             else
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d now disabled.\n", moi, port);
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d now disabled.\n", moi, port);
               }
             scu.ports[port].is_enabled = 0;
           }
@@ -705,45 +698,45 @@ int scu_set_config_switches(t_uint64 addr)
           {
             if (!scu.ports[port].is_enabled)
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is now enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is now enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
                 scu.ports[port].is_enabled = 1;
               }
             else
               {
-                sim_debug (DEBUG_INFO, &scu_dev, "%s: Port %d is still enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
+                sim_debug (DBG_INFO, &scu_dev, "%s: Port %d is still enabled; it points to port %d on %s %c.\n", moi, port, scu.ports[port].dev_port, adev2text(scu.ports[port].type), scu.ports[port].idnum + 'A');
               }
           }
       }
     
-    sim_debug (DEBUG_NOTIFY, &scu_dev, "%s: Doing BUG check.\n", moi);
+    sim_debug (DBG_NOTIFY, &scu_dev, "%s: Doing BUG check.\n", moi);
     int ret = 0;
     t_uint64 a = reg_A;
     t_uint64 q = reg_Q;
     scu_get_config_switches(addr);
     if (a == reg_A) {
-        sim_debug (DEBUG_NOTIFY, &scu_dev, "%s: we handled reg A correctly\n", moi);
+        sim_debug (DBG_NOTIFY, &scu_dev, "%s: we handled reg A correctly\n", moi);
     } else {
-        sim_debug (DEBUG_ERR, &scu_dev, "scu_get_config_switches: sscr specified reg A %012llo\n", a);
-        sim_debug (DEBUG_ERR, &scu_dev, "scu_get_config_switches: we used              %012llo\n", reg_A);
+        sim_debug (DBG_ERR, &scu_dev, "scu_get_config_switches: sscr specified reg A %012llo\n", a);
+        sim_debug (DBG_ERR, &scu_dev, "scu_get_config_switches: we used              %012llo\n", reg_A);
         reg_A = a;
         ret = 1;
     }
     if (q == reg_Q) {
-        sim_debug (DEBUG_NOTIFY, &scu_dev, "%s: we handled reg Q correctly\n", moi);
+        sim_debug (DBG_NOTIFY, &scu_dev, "%s: we handled reg Q correctly\n", moi);
     } else {
-        sim_debug (DEBUG_ERR, &scu_dev, "scu_get_config_switches: sscr specified reg Q %012llo\n", q);
-        sim_debug (DEBUG_ERR, &scu_dev, "scu_get_config_switches: we used              %012llo\n", reg_Q);
+        sim_debug (DBG_ERR, &scu_dev, "scu_get_config_switches: sscr specified reg Q %012llo\n", q);
+        sim_debug (DBG_ERR, &scu_dev, "scu_get_config_switches: we used              %012llo\n", reg_Q);
         reg_Q = q;
         ret = 1;
     }
     
     if (ret == 0)
       {
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: Unfinished but OK.\n", moi);
+        sim_debug (DBG_WARN, &scu_dev, "%s: Unfinished but OK.\n", moi);
       }
     else
       {
-        sim_debug (DEBUG_ERR, &scu_dev, "scu_get_config_switches: Unfinished and incorrect.\n");
+        sim_debug (DBG_ERR, &scu_dev, "scu_get_config_switches: Unfinished and incorrect.\n");
         cancel_run(STOP_BUG);
       }
     return ret;
@@ -786,15 +779,15 @@ int scu_get_mask(t_uint64 addr, int port)
         // similar case...
         reg_A = 0;
         reg_Q = 0;
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: No masks assigned to port %d\n", moi, port);
+        sim_debug (DBG_WARN, &scu_dev, "%s: No masks assigned to port %d\n", moi, port);
         return 0;
     }
     if (port_found > 1)
       {
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: Multiple masks assigned to port %d\n", moi, port);
+        sim_debug (DBG_WARN, &scu_dev, "%s: Multiple masks assigned to port %d\n", moi, port);
       }
     
-    sim_debug (DEBUG_INFO, &scu_dev, "%s: Found MASK %d assigned to port %d. Ports enabled on mask are:", moi, port_pima, port);
+    sim_debug (DBG_INFO, &scu_dev, "%s: Found MASK %d assigned to port %d. Ports enabled on mask are:", moi, port_pima, port);
     // See AN87
     reg_A = setbits36(0, 0, 16, scu.interrupts[port_pima].exec_intr_mask >> 16);
     unsigned mask = 0;
@@ -804,7 +797,7 @@ int scu_get_mask(t_uint64 addr, int port)
         mask |= enabled;
         if (enabled)
           {
-            sim_debug (DEBUG_INFO, &scu_dev, " %d", i);
+            sim_debug (DBG_INFO, &scu_dev, " %d", i);
           }
     }
     reg_A |= mask;
@@ -815,7 +808,7 @@ int scu_get_mask(t_uint64 addr, int port)
         int enabled = scu.ports[i+4].is_enabled;
         if (enabled)
           {
-            sim_debug (DEBUG_INFO, &scu_dev, " %d", i + 4);
+            sim_debug (DBG_INFO, &scu_dev, " %d", i + 4);
           }
         mask <<= 1;
         mask |= enabled;
@@ -823,9 +816,9 @@ int scu_get_mask(t_uint64 addr, int port)
     reg_Q |= mask;
     if ((reg_A & 017) == 0 && mask == 0)
       {
-        sim_debug (DEBUG_INFO, &scu_dev, "none");
+        sim_debug (DBG_INFO, &scu_dev, "none");
       }
-    sim_debug (DEBUG_INFO, &scu_dev, "\n");
+    sim_debug (DBG_INFO, &scu_dev, "\n");
     
     return 0;
 }
@@ -900,8 +893,8 @@ int scu_cioc(t_uint64 addr)
         return ret;
     }
     int port = word & 7;
-    sim_debug (DEBUG_INFO, &scu_dev, "\n");
-    sim_debug (DEBUG_DEBUG, &scu_dev, "scu_cioc: Contents of %llo are: %llo => port %d\n", addr, word, port);
+    sim_debug (DBG_INFO, &scu_dev, "\n");
+    sim_debug (DBG_DEBUG, &scu_dev, "scu_cioc: Contents of %llo are: %llo => port %d\n", addr, word, port);
     // OK ... what's a connect signal (as opposed to an interrupt?
     // A connect signal does the following (AN70, 8-7):
     //  IOM target: connect strobe to IOM
@@ -912,19 +905,19 @@ int scu_cioc(t_uint64 addr)
     static int n_cioc = 0;
     {
         //static int n_cioc = 0;
-        sim_debug (DEBUG_NOTIFY, &scu_dev, "scu_cioc: CIOC # %d\n", ++ n_cioc);
+        sim_debug (DBG_NOTIFY, &scu_dev, "scu_cioc: CIOC # %d\n", ++ n_cioc);
         if (n_cioc >= 306) {        // BUG: temp hack to increase debug level
             /* XXX Evil: ++ cpu_dev.dctrl */;
         }
     }
-    sim_debug (DEBUG_DEBUG, &scu_dev, "scu_cioc: Connect sent to port %d => %d\n", port, scu.ports[port]);
+    sim_debug (DBG_DEBUG, &scu_dev, "scu_cioc: Connect sent to port %d => %d\n", port, scu.ports[port]);
     
     // we only have one IOM, so signal it
     // todo: sanity check port connections
     if (sys_opts.iom_times.connect < 0)
         iom_interrupt();
     else {
-        sim_debug (DEBUG_INFO, &scu_dev, "scu_cioc: Queuing an IOM in %d cycles (for the connect channel)\n", sys_opts.iom_times.connect);
+        sim_debug (DBG_INFO, &scu_dev, "scu_cioc: Queuing an IOM in %d cycles (for the connect channel)\n", sys_opts.iom_times.connect);
         if (sim_activate(&iom_dev.units[0], sys_opts.iom_times.connect) != SCPE_OK) {
             cancel_run(STOP_UNK);
             ret = 1;
@@ -946,26 +939,26 @@ static int pima_parse_raw(int pima, const char *moi)
     flag_t unassigned = scu.interrupts[pima].mask_assign.raw & 1;
     if (unassigned) {
         scu.interrupts[pima].mask_assign.unassigned = 1;
-        sim_debug (DEBUG_NOTIFY, &scu_dev, "%s: Unassigning MASK %c.\n", moi, pima_name);
+        sim_debug (DBG_NOTIFY, &scu_dev, "%s: Unassigning MASK %c.\n", moi, pima_name);
     }
     int found = 0;
     for (int p = 0; p < 8; ++p)
         if (((1<<(8-p) & scu.interrupts[pima].mask_assign.raw)) != 0) {
             ++ found;
             scu.interrupts[pima].mask_assign.port = p;
-            sim_debug (DEBUG_NOTIFY, &scu_dev, "%s: Assigning port %d to MASK %c.\n", moi, p, pima_name);
+            sim_debug (DBG_NOTIFY, &scu_dev, "%s: Assigning port %d to MASK %c.\n", moi, p, pima_name);
         }
     if (unassigned) {
         if (found != 0) {
-            sim_debug (DEBUG_WARN, &scu_dev, "%s: %d ports enabled for unassigned MASK %c: %#o\n", moi, found, pima_name, scu.interrupts[pima].mask_assign.raw);
+            sim_debug (DBG_WARN, &scu_dev, "%s: %d ports enabled for unassigned MASK %c: %#o\n", moi, found, pima_name, scu.interrupts[pima].mask_assign.raw);
             cancel_run(STOP_WARN);
         }
         return found != 0;
     } else {
         scu.interrupts[pima].mask_assign.unassigned = found == 0;
         if (found != 1) {
-            sim_debug (DEBUG_WARN, &scu_dev, "%s: d ports enabled for MASK %c: %#o\n", moi, found, pima_name, scu.interrupts[pima].mask_assign.raw);
-            sim_debug (DEBUG_WARN, &scu_dev, "%s: Auto breakpoint.\n", moi);
+            sim_debug (DBG_WARN, &scu_dev, "%s: d ports enabled for MASK %c: %#o\n", moi, found, pima_name, scu.interrupts[pima].mask_assign.raw);
+            sim_debug (DBG_WARN, &scu_dev, "%s: Auto breakpoint.\n", moi);
             cancel_run(STOP_WARN);
         }
         return found != 1;
@@ -979,35 +972,35 @@ int scu_set_interrupt(int inum)
     const char* moi = "SCU::interrupt";
     
     if (inum < 0 || inum > 31) {
-        sim_debug (DEBUG_WARN, &scu_dev, "%s: Bad interrupt number %d\n", moi, inum);
+        sim_debug (DBG_WARN, &scu_dev, "%s: Bad interrupt number %d\n", moi, inum);
         cancel_run(STOP_WARN);
         return 1;
     }
     
     for (int pima = 0; pima < ARRAY_SIZE(scu.interrupts); ++pima) {
         if (! scu.interrupts[pima].avail) {
-            sim_debug (DEBUG_DEBUG, &scu_dev, "%s: PIMA %c: Mask is not available.\n",
+            sim_debug (DBG_DEBUG, &scu_dev, "%s: PIMA %c: Mask is not available.\n",
                     moi, pima + 'A');
             continue;
         }
         if (scu.interrupts[pima].mask_assign.unassigned) {
-            sim_debug (DEBUG_DEBUG, &scu_dev, "%s: PIMA %c: Mask is not assigned.\n",
+            sim_debug (DBG_DEBUG, &scu_dev, "%s: PIMA %c: Mask is not assigned.\n",
                     moi, pima + 'A');
             continue;
         }
         uint mask = scu.interrupts[pima].exec_intr_mask;
         int port = scu.interrupts[pima].mask_assign.port;
         if ((mask & (1<<inum)) == 0) {
-            sim_debug (DEBUG_INFO, &scu_dev, "%s: PIMA %c: Port %d is masked against interrupts.\n",
+            sim_debug (DBG_INFO, &scu_dev, "%s: PIMA %c: Port %d is masked against interrupts.\n",
                     moi, 'A' + pima, port);
-            sim_debug (DEBUG_DEBUG, &scu_dev, "%s: Mask: %s\n", moi, bin2text(mask, 32));
+            sim_debug (DBG_DEBUG, &scu_dev, "%s: Mask: %s\n", moi, bin2text(mask, 32));
         } else {
             if (scu.ports[port].type != ADEV_CPU)
-                sim_debug (DEBUG_WARN, &scu_dev, "%s: PIMA %c: Port %d should receive interrupt %d, but the device is not a cpu.\n",
+                sim_debug (DBG_WARN, &scu_dev, "%s: PIMA %c: Port %d should receive interrupt %d, but the device is not a cpu.\n",
                         moi, 'A' + pima, port, inum);
             else {
                 //extern events_t events; // BUG: put in hdr file or hide behind an access function
-                sim_debug (DEBUG_NOTIFY, &scu_dev, "%s: PIMA %c: Port %d (which is connected to port %d of CPU %d will receive interrupt %d.\n",
+                sim_debug (DBG_NOTIFY, &scu_dev, "%s: PIMA %c: Port %d (which is connected to port %d of CPU %d will receive interrupt %d.\n",
                         moi,
                        'A' + pima, port, scu.ports[port].dev_port,
                         scu.ports[port].idnum, inum);

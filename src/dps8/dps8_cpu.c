@@ -48,6 +48,10 @@ static DEBTAB cpu_dt[] = {
     { "REGDUMP",    DBG_REGDUMP     }, // don't move as it messes up DBG message
     { "ADDRMOD",    DBG_ADDRMOD     },
     { "APPENDING",  DBG_APPENDING   },
+    { "WARN",       DBG_WARN        },
+    { "DEBUG",      DBG_DEBUG       },
+    { "INFO",       DBG_INFO        },
+    { "NOTIFY",     DBG_NOTIFY      },
     { NULL,         0               }
 };
 
@@ -374,7 +378,7 @@ CTAB dps8_cmds[] =
 t_stat cpu_reset_mm (DEVICE *dptr)
 {
     
-    log_msg(INFO_MSG, "CPU::reset", "Running\n");
+    sim_debug (DBG_INFO, & cpu_dev, "CPU reset: Running\n");
     
     ic_history_init();
     
@@ -774,7 +778,7 @@ void cancel_run(t_stat reason)
     (void) sim_cancel_step();
     if (cancel == 0 || reason < cancel)
         cancel = reason;
-    //log_msg(DEBUG_MSG, "CU", "Cancel requested: %d\n", reason);
+    //sim_debug (DBG_DEBUG, & cpu_dev, "CU: Cancel requested: %d\n", reason);
 }
 
 
@@ -1352,14 +1356,14 @@ DCDstruct *decodeInstruction(word36 inst, DCDstruct *dst)     // decode instruct
 //                fault_gen(acc_viol_fault);
 //                cpu.apu_state.fhld = 0;
 //            }
-//            log_msg(WARN_MSG, "APU::is-priv-mode", "Segment does not exist?!?\n");
+//            sim_debug (DGB_WARN, & cpu_dev, "APU is-priv-mode: Segment does not exist?!?\n");
 //            cancel_run(STOP_BUG);
 //            return 0;   // arbitrary
 //        }
 //        if (SDWp->priv)
 //            return 1;
 //        if(opt_debug>0)
-//            log_msg(DEBUG_MSG, "APU", "Priv check fails for segment %#o.\n", TPR.TSR);
+//            sim_debug (DBG_DEBUG, & cpu_dev, "APU: Priv check fails for segment %#o.\n", TPR.TSR);
 //        return 0;
         
         return 0;
@@ -1410,12 +1414,12 @@ void set_addr_mode(addr_modes_t mode)
         SETF(rIR, I_NBAR);
         
         PPR.P = 1;
-        log_msg(DEBUG_MSG, "APU", "Setting absolute mode.\n");
+        sim_debug (DBG_DEBUG, & cpu_dev, "APU: Setting absolute mode.\n");
     } else if (mode == APPEND_mode) {
         if (! IR.abs_mode && IR.not_bar_mode)
-          log_msg(DEBUG_MSG, "APU", "Keeping append mode.\n");
+          sim_debug (DBG_DEBUG, & cpu_dev, "APU: Keeping append mode.\n");
         else
-           log_msg(DEBUG_MSG, "APU", "Setting append mode.\n");
+           sim_debug (DBG_DEBUG, & cpu_dev, "APU: Setting append mode.\n");
         IR.abs_mode = 0;
         CLRF(rIR, I_ABS);
         
@@ -1428,9 +1432,9 @@ void set_addr_mode(addr_modes_t mode)
         IR.not_bar_mode = 0;
         CLRF(rIR, I_NBAR);
         
-        log_msg(WARN_MSG, "APU", "Setting bar mode.\n");
+        sim_debug (DBG_WARN, & cpu_dev, "APU: Setting bar mode.\n");
     } else {
-        log_msg(ERR_MSG, "APU", "Unable to determine address mode.\n");
+        sim_debug (DBG_ERR, & cpu_dev, "APU: Unable to determine address mode.\n");
         cancel_run(STOP_BUG);
     }
     

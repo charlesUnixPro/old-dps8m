@@ -98,20 +98,13 @@ UNIT mt_unit [N_MT_UNITS] = {{
     UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)
 }};
 
-#define DEBUG_NOTIFY (1 << 0)
-#define DEBUG_INFO (1 << 1)
-#define DEBUG_ERR (1 << 2)
-#define DEBUG_DEBUG (1 << 3)
-#define DEBUG_WARN (1 << 4)
-#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN)
-
 static DEBTAB mt_dt [] =
   {
-    { "NOTIFY", DEBUG_NOTIFY },
-    { "INFO", DEBUG_INFO },
-    { "ERR", DEBUG_ERR },
-    { "DEBUG", DEBUG_DEBUG },
-    { "ALL", DEBUG_ALL }, // don't move as it messes up DBG message
+    { "NOTIFY", DBG_NOTIFY },
+    { "INFO", DBG_INFO },
+    { "ERR", DBG_ERR },
+    { "DEBUG", DBG_DEBUG },
+    { "ALL", DBG_ALL }, // don't move as it messes up DBG message
     { NULL, 0 }
   };
 
@@ -183,7 +176,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
     int* subp = &devinfop->substatus;
     
 
-    sim_debug (DEBUG_DEBUG, &iom_dev, "mt_iom_cmd: Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
+    sim_debug (DBG_DEBUG, &iom_dev, "mt_iom_cmd: Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
             chan, dev_cmd, dev_code);
     
     devinfop->is_read = 1;
@@ -195,7 +188,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
         devinfop->have_status = 1;
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
-        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Bad channel %d\n", chan);
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Bad channel %d\n", chan);
         cancel_run(STOP_BUG);
         return 1;
     }
@@ -205,7 +198,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
         devinfop->have_status = 1;
         *majorp = 05;
         *subp = 2;
-        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Internal error, no device and/or unit for channel 0%o\n", chan);
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Internal error, no device and/or unit for channel 0%o\n", chan);
         cancel_run(STOP_BUG);
         return 1;
     }
@@ -213,7 +206,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
         devinfop->have_status = 1;
         *majorp = 05;   // Command Reject
         *subp = 2;      // Invalid Device Code
-        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Bad dev unit-num 0%o (%d decimal)\n", dev_code, dev_code);
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Bad dev unit-num 0%o (%d decimal)\n", dev_code, dev_code);
         cancel_run(STOP_BUG);
         return 1;
     }
@@ -236,7 +229,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             // todo: switch to having all cmds update status reg?
             // This would allow setting 047 bootload complete after
             // power-on -- if we need that...
-            sim_debug (DEBUG_INFO, &iom_dev, "mt_iom_cmd: Request status is %02o,%02o.\n",
+            sim_debug (DBG_INFO, &iom_dev, "mt_iom_cmd: Request status is %02o,%02o.\n",
                     *majorp, *subp);
             return 0;
         }
@@ -245,7 +238,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             // IOM can subsequently retrieve the data via DCWs.
             if (tape_statep->bufp == NULL)
                 if ((tape_statep->bufp = malloc(bufsz)) == NULL) {
-                    sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Malloc error\n");
+                    sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Malloc error\n");
                     devinfop->have_status = 1;
                     *majorp = 012;  // BUG: arbitrary error code; config switch
                     *subp = 1;
@@ -259,19 +252,19 @@ int mt_iom_cmd(chan_devinfo* devinfop)
                 ret = sim_tape_rdrecf(unitp, tape_statep->bufp, &tbc, bufsz);
             if (ret != 0) {
                 if (ret == MTSE_TMK || ret == MTSE_EOM) {
-                    sim_debug (DEBUG_NOTIFY, &iom_dev, "mt_iom_cmd: EOF: %s\n", simh_tape_msg(ret));
+                    sim_debug (DBG_NOTIFY, &iom_dev, "mt_iom_cmd: EOF: %s\n", simh_tape_msg(ret));
                     devinfop->have_status = 1;
                     *majorp = 044;  // EOF category
                     *subp = 023;    // EOF file mark
                     if (tbc != 0) {
-                        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Read %d bytes with EOF.\n", tbc);
+                        sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Read %d bytes with EOF.\n", tbc);
                         cancel_run(STOP_WARN);
                     }
                     return 0;
                 } else {
                     devinfop->have_status = 1;
-                    sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Cannot read tape: %d - %s\n", ret, simh_tape_msg(ret));
-                    sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Returning arbitrary error code\n");
+                    sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Cannot read tape: %d - %s\n", ret, simh_tape_msg(ret));
+                    sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Returning arbitrary error code\n");
                     *majorp = 010;  // BUG: arbitrary error code; config switch
                     *subp = 1;
                     return 1;
@@ -286,10 +279,10 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             tape_statep->io_mode = read_mode;
             devinfop->time = sys_opts.mt_times.read;
             if (devinfop->time < 0) {
-                sim_debug (DEBUG_INFO, &iom_dev, "mt_iom_cmd: Read %d bytes from simulated tape\n", (int) tbc);
+                sim_debug (DBG_INFO, &iom_dev, "mt_iom_cmd: Read %d bytes from simulated tape\n", (int) tbc);
                 devinfop->have_status = 1;
             } else
-                sim_debug (DEBUG_INFO, &iom_dev, "mt_iom_cmd: Queued read of %d bytes from tape.\n", (int) tbc);
+                sim_debug (DBG_INFO, &iom_dev, "mt_iom_cmd: Queued read of %d bytes from tape.\n", (int) tbc);
             return 0;
         }
         case 040:               // CMD 040 -- Reset Status
@@ -298,7 +291,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             *subp = 0;
             if (sim_tape_wrp(unitp))
               *subp |= 1;
-            sim_debug (DEBUG_INFO, &iom_dev, "mt_iom_cmd: Reset status is %02o,%02o.\n",
+            sim_debug (DBG_INFO, &iom_dev, "mt_iom_cmd: Reset status is %02o,%02o.\n",
                     *majorp, *subp);
             return 0;
         case 046: {             // BSR
@@ -307,19 +300,19 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             t_mtrlnt tbc;
             int ret;
             if ((ret = sim_tape_sprecr(unitp, &tbc)) == 0) {
-                sim_debug (DEBUG_NOTIFY, &iom_dev, "mt_iom_cmd: Backspace one record\n");
+                sim_debug (DBG_NOTIFY, &iom_dev, "mt_iom_cmd: Backspace one record\n");
                 devinfop->have_status = 1;  // TODO: queue
                 *majorp = 0;
                 *subp = 0;
                 if (sim_tape_wrp(unitp)) *subp |= 1;
             } else {
-                sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Cannot backspace record: %d - %s\n", ret, simh_tape_msg(ret));
+                sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Cannot backspace record: %d - %s\n", ret, simh_tape_msg(ret));
                 devinfop->have_status = 1;
                 if (ret == MTSE_BOT) {
                     *majorp = 05;
                     *subp = 010;
                 } else {
-                    sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Returning arbitrary error code\n");
+                    sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Returning arbitrary error code\n");
                     *majorp = 010;  // BUG: arbitrary error code; config switch
                     *subp = 1;
                 }
@@ -334,14 +327,14 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             *majorp = 0;
             *subp = 0;
             if (sim_tape_wrp(unitp)) *subp |= 1;
-            sim_debug (DEBUG_INFO, &iom_dev, "mt_iom_cmd: Reset device status is %02o,%02o.\n",
+            sim_debug (DBG_INFO, &iom_dev, "mt_iom_cmd: Reset device status is %02o,%02o.\n",
                     *majorp, *subp);
             return 0;
         default: {
             devinfop->have_status = 1;
             *majorp = 05;
             *subp = 1;
-            sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_cmd: Unknown command 0%o\n", dev_cmd);
+            sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Unknown command 0%o\n", dev_cmd);
             return 1;
         }
     }
@@ -417,12 +410,12 @@ static int extractWord36FromBuffer (uint8 * bufp, t_mtrlnt tbc, uint * words_pro
 
 int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
 {
-    // sim_debug (DEBUG_DEBUG, &iom_dev, "mt_iom_io: Chan 0%o\n", chan);
+    // sim_debug (DBG_DEBUG, &iom_dev, "mt_iom_io: Chan 0%o\n", chan);
     
     if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
-        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_io: Bad channel %d\n", chan);
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_io: Bad channel %d\n", chan);
         return 1;
     }
     
@@ -430,7 +423,7 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;
-        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_io: Internal error, no device and/or unit for channel 0%o\n", chan);
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_io: Internal error, no device and/or unit for channel 0%o\n", chan);
         return 1;
     }
     UNIT* unitp = devp->units;
@@ -442,7 +435,7 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
         // no prior read or write command
         *majorp = 013;  // MPC Device Data Alert
         *subp = 02;     // Inconsistent command
-        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_io: Bad channel %d\n", chan);
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_io: Bad channel %d\n", chan);
         return 1;
     } else if (tape_statep->io_mode == read_mode) {
         // read
@@ -464,18 +457,18 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
             *majorp = 0;
             *subp = 0;
             if (sim_tape_wrp(unitp)) *subp |= 1;
-            sim_debug (DEBUG_WARN, &iom_dev, "mt_iom_io: Read buffer exhausted on channel %d\n", chan);
+            sim_debug (DBG_WARN, &iom_dev, "mt_iom_io: Read buffer exhausted on channel %d\n", chan);
             return 1;
         }
         *majorp = 0;
         *subp = 0;      // BUG: do we need to detect end-of-record?
         if (sim_tape_wrp(unitp)) *subp |= 1;
         //if (opt_debug > 2)
-        // sim_debug (DEBUG_DEBUG, &iom_dev, "mt_iom_io: Data moved from tape controller buffer to IOM\n");
+        // sim_debug (DBG_DEBUG, &iom_dev, "mt_iom_io: Data moved from tape controller buffer to IOM\n");
         return 0;
     } else {
         // write
-        sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_io: Write I/O Unimplemented\n");
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_io: Write I/O Unimplemented\n");
         *majorp = 043;  // DATA ALERT
         *subp = 040;        // Reflective end of tape mark found while trying to write
         return 1;
@@ -484,14 +477,14 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     /*notreached*/
     *majorp = 0;
     *subp = 0;
-    sim_debug (DEBUG_ERR, &iom_dev, "mt_iom_io: Internal error.\n");
+    sim_debug (DBG_ERR, &iom_dev, "mt_iom_io: Internal error.\n");
     cancel_run(STOP_BUG);
     return 1;
 }
 
 t_stat mt_svc(UNIT *up)
 {
-    sim_debug (DEBUG_DEBUG, &iom_dev, "mt_svc: Calling channel service.\n");
+    sim_debug (DBG_DEBUG, &iom_dev, "mt_svc: Calling channel service.\n");
     return channel_svc(up);
 }
 

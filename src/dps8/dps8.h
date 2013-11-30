@@ -299,6 +299,12 @@ register modification. The modified C(TPR.CA) is then used to fetch an indirect 
 #define DBG_ADDRMOD     (1 << 9)    ///< follow address modifications
 #define DBG_APPENDING   (1 << 10)   ///< follow appending unit operations
 #define DBG_TRACEEXT    (1 << 11)   ///< extended instruction trace
+#define DBG_WARN        (1 << 12)   
+#define DBG_DEBUG       (1 << 13)   
+#define DBG_INFO        (1 << 14)   
+#define DBG_NOTIFY      (1 << 15)   
+#define DBG_ERR         (1 << 16)   
+#define DBG_ALL (DBG_NOTIFY | DBG_INFO | DBG_ERR | DBG_DEBUG | DBG_WARN | DBG_ERR )
 
 /* Global data */
 
@@ -1630,7 +1636,6 @@ extern t_stat loadSpecial(char *buff);
 
 extern bool adrTrace;   ///< when true perform address modification tracing
 extern bool apndTrace;  ///< when true do appending unit tracing
-extern bool unitTrace;  ///< when true do unit level tracing
 
 //extern t_uint64 cpuCycles; ///< # of instructions executed in this run...
 #define cpuCycles sys_stats.total_cycles
@@ -1793,13 +1798,6 @@ enum active_dev { ADEV_NONE, ADEV_CPU, ADEV_IOM };
 // Devices connected to an IOM (I/O multiplexer)
 enum dev_type { DEVT_NONE, DEVT_TAPE, DEVT_CON, DEVT_DISK };
 
-// Logging levels. Messages at level "debug" and level "info" may be re-routed
-// to a file via the debug log command (messages at all levels may be
-// re-routed via the console log command. Messages at level debug
-// may be suppressed by turning off debug.
-enum log_level { DEBUG_MSG, INFO_MSG, NOTIFY_MSG, WARN_MSG, ERR_MSG };
-
-void log_msg(enum log_level level, const char* who, const char* format, ...);
 void out_msg(const char* format, ...);
 
 typedef unsigned int uint;  // efficient unsigned int, at least 32 bits

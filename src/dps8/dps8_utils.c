@@ -1143,7 +1143,6 @@ t_uint64 calendar_q;
 
 
 
-static void msg(enum log_level level, const char *who, const char* format, va_list ap);
 uint ignore_IC = 0;
 uint last_IC;
 uint last_IC_seg;
@@ -1163,7 +1162,7 @@ inline t_uint64 getbits36(t_uint64 x, int i, unsigned n) {
     // bit 35 is right end, bit zero is 36th from the right
     int shift = 35-i-n+1;
     if (shift < 0 || shift > 35) {
-//        log_msg(ERR_MSG, "getbits36", "bad args (%012llo,i=%d,n=%d)\n", x, i, n);
+//        sim_debug (DBG_ERR, & cpu_dev, "getbits36: bad args (%012llo,i=%d,n=%d)\n", x, i, n);
 //        cancel_run(STOP_BUG);
         return 0;
     } else
@@ -1183,7 +1182,7 @@ inline t_uint64 setbits36(t_uint64 x, int p, unsigned n, t_uint64 val)
 {
     int shift = 36 - p - n;
     if (shift < 0 || shift > 35) {
-//        log_msg(ERR_MSG, "setbits36", "bad args (%012llo,pos=%d,n=%d)\n", x, p, n);
+//        sim_debug (DBG_ERR, & cpu_dev, "setbits36: bad args (%012llo,pos=%d,n=%d)\n", x, p, n);
 //        cancel_run(STOP_BUG);
         return 0;
     }
@@ -1194,86 +1193,6 @@ inline t_uint64 setbits36(t_uint64 x, int p, unsigned n, t_uint64 val)
     t_uint64 result = (x & ~ mask) | ((val&MASKBITS(n)) << (36 - p - n));
     return result;
 }
-
-bool unitTrace = false; // when TRUE unit tracing is enabled ...
-// XXX migrate log_msg and friends to simg debug utilities
-
-void log_msg(enum log_level level, const char* who, const char* format, ...)
-{
-    //if (sim_quiet && level != INFO_MSG)
-    //    return;
- 
-    if (unitTrace == false)
-        return;
-    
-    if (level == DEBUG_MSG) {
-        if (cpu_dev.dctrl == 0) // todo: should CPU control all debug settings?
-            return;
-    }
-    
-    // Make sure all messages have a prior display of the IC
-//    if (!ignore_IC && (PPR.IC != last_IC || PPR.PSR != last_IC_seg)) {
-//        last_IC = PPR.IC;
-//        last_IC_seg = PPR.PSR;
-//        char *tag = "Debug";
-//        // char *who = "IC";
-//        // out_msg("\n%s: %*s %s %*sIC: %o\n", tag, 7-strlen(tag), "", who, 18-strlen(who), "", PPR.IC);
-//        char icbuf[80];
-//        addr_modes_t addr_mode = get_addr_mode();
-//        ic2text(icbuf, addr_mode, PPR.PSR, PPR.IC);
-//        // out_msg("\n");
-//        // out_msg("%s: %*s IC: %s\n", tag, 7-strlen(tag), "", icbuf);
-//        msg(DEBUG_MSG, NULL, "\n", NULL);
-//        char buf[80];
-//        sprintf(buf, "%s: %*s IC: %s\n", tag, 7 - (int) strlen(tag), "", icbuf);
-//        msg(DEBUG_MSG, NULL, buf, NULL);
-//    }
-    
-    va_list ap;
-    va_start(ap, format);
-#if 0
-    char *tag = (level == DEBUG_MSG) ? "Debug" :
-    (level == INFO_MSG) ? "Info" :
-    (level == NOTIFY_MSG) ? "Note" :
-    (level == WARN_MSG) ? "WARNING" :
-    (level == ERR_MSG) ? "ERROR" :
-    "???MESSAGE";
-    msg(tag, who, format, ap);
-#else
-    msg(level, who, format, ap);
-#endif
-    va_end(ap);
-}
-
-#if 0
-void debug_msg(const char* who, const char* format, ...)
-{
-    if (opt_debug == 0)
-        return;
-    if (cpu_dev.dctrl == 0 && opt_debug < 1) // todo: should CPU control all debug settings?
-        return;
-    va_list ap;
-    va_start(ap, format);
-    msg("Debug", who, format, ap);
-    va_end(ap);
-}
-
-void warn_msg(const char* who, const char* format, ...)
-{
-    va_list ap;
-    va_start(ap, format);
-    msg("WARNING", who, format, ap);
-    va_end(ap);
-}
-
-void complain_msg(const char* who, const char* format, ...)
-{
-    va_list ap;
-    va_start(ap, format);
-    msg("ERROR", who, format, ap);
-    va_end(ap);
-}
-#endif
 
 
 static void crnl_out(FILE *stream, const char *format, va_list ap)
@@ -1328,66 +1247,6 @@ void out_msg(const char* format, ...)
     }
 }
 
-#if 0
-static void sim_hmsg(const char* tag, const char *who, const char* format, va_list ap)
-{
-    // This version uses SIMH facilities -- not tested
-    char buf[2000];
-    snprintf(buf, sizeof(buf), "%s: %*s %s: %*s", tag, 7-strlen(tag), "", who, 18-strlen(who), "");
-    int l = strlen(buf);
-    vsnprintf(buf + l, sizeof(buf) - l, format, ap);
-    // TODO: setup every device with sim_debtab entries to reflect different debug levels
-    sim_debug(~0, &cpu_dev, "%s", buf);
-}
-#endif
-
-static void msg(enum log_level level, const char *who, const char* format, va_list ap)
-{
-    // This version does not use SIMH facilities -- except for the sim_deb and sim_log streams
-    
-    enum { con, dbg };
-    FILE *streams[2];
-    
-    streams[con] = (sim_log != NULL) ? sim_log : stdout;
-    streams[dbg] = sim_deb;
-    if (level == DEBUG_MSG || level == INFO_MSG) {
-        // Debug and info messages go to a debug log if one exists, otherwise to
-        // the console
-        if (streams[dbg] != NULL)
-            streams[con] = NULL;
-    } else {
-        // Non debug msgs always go to the console. If a seperate debug
-        // log exists, it also gets non-debug msgs.
-        streams[dbg] = (sim_log == sim_deb) ? NULL : sim_deb;
-    }
-    
-    char *tag = (level == DEBUG_MSG) ? "Debug" :
-    (level == INFO_MSG) ? "Info" :
-    (level == NOTIFY_MSG) ? "Note" :
-    (level == WARN_MSG) ? "WARNING" :
-    (level == WARN_MSG) ? "WARNING" :
-    (level == ERR_MSG) ? "ERROR" :
-    "???MESSAGE";
-    
-    for (int s = 0; s <= dbg; ++s) {
-        FILE *stream = streams[s];
-        if (stream == NULL)
-            continue;
-        if (who != NULL)
-            fprintf(stream, "%s: %*s %s: %*s", tag, 7 - (int) strlen(tag), "", who, 18 - (int) strlen(who), "");
-        
-        if (ap == NULL)
-            crnl_out(stream, format, NULL);
-        else {
-            va_list aq;
-            va_copy(aq, ap);
-            crnl_out(stream, format, aq);
-            va_end(aq);
-        }
-        if (level != DEBUG_MSG) // BUG: ?
-            fflush(stream);
-    }
-}
 
 /*
  * bin2text()

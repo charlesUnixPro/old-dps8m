@@ -3607,7 +3607,7 @@ static t_stat DoBasicInstruction(DCDstruct *i)
             // Setting cu.rpt will cause the instruction to be executed
             // until the termination is met.
             // See cpu.c for the rest of the handling.
-            log_msg(INFO_MSG, "OPU", "RPT instruction found\n");
+            sim_debug (DBG_TRACE, & cpu_dev, "OPU: RPT instruction found\n");
             return 0;
         }
 
@@ -3915,9 +3915,9 @@ static t_stat DoBasicInstruction(DCDstruct *i)
             
         case 0616:  ///< dis
             if (i->i) {
-                log_msg(WARN_MSG, "OPU::dis", "DIS with inhibit set\n");
+                sim_debug (DBG_WARN, & cpu_dev, "OPU dis: DIS with inhibit set\n");
             } else {
-                log_msg(WARN_MSG, "OPU::dis", "DIS\n");
+                sim_debug (DBG_WARN, & cpu_dev, "OPU dis: DIS\n");
             }
             cpu.cycle = DIS_cycle;
 
