@@ -20,9 +20,7 @@ C_SRCS += \
 ./dps8_sys.c \
 ./dps8_utils.c \
 ./dps8_decimal.c \
-./dps8_faults.c \
-../decNumber/decContext.c \
-../decNumber/decNumber.c 
+./dps8_faults.c 
 
 
 OBJS += \
@@ -47,9 +45,7 @@ OBJS += \
 ./dps8_sys.o \
 ./dps8_utils.o \
 ./dps8_decimal.o \
-./dps8_faults.o \
-../decNumber/decContext.o \
-../decNumber/decNumber.o 
+./dps8_faults.o 
 
 # for Linux (Ubuntu 12.10 64-bit) or Apple OS/X 10.8
 CFLAGS = -g -I../decNumber -I../simh -std=c99 -U__STRICT_ANSI__  -O0 -finline-functions -fgcse-after-reload -fpredictive-commoning -fipa-cp-clone -fno-unsafe-loop-optimizations -fno-strict-overflow -Wno-unused-result -I . -D_GNU_SOURCE -DUSE_READER_THREAD -DHAVE_DLOPEN=so -Wall -DUSE_INT64
@@ -70,7 +66,7 @@ CFLAGS += -DQUIET_UNUSED
 # For OS/X
 #LIBS = -lm -lpthread -ldl   -flto -fwhole-program
 
-LIBS = -lm -lrt -lpthread -ldl   -flto -fwhole-program  -lefence ../simh/simh.a
+LIBS = -lm -lrt -lpthread -ldl   -flto -fwhole-program  -lefence ../simh/simh.a ../decNumber/decNumber.a
 
 all: dps8
 
