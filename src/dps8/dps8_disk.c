@@ -18,6 +18,7 @@
  See manual AN87
  
  */
+
 /*
  Copyright (c) 2007-2013 Michael Mondy
  
@@ -27,17 +28,60 @@
  at http://example.org/project/LICENSE.
  */
 
-//#include "hw6180.h"
-//#include "bitstream.h"
 
-extern iom_t iom;
+#define M3381_SECTORS 6895616
+// records per subdev: 74930 (127 * 590)
+// number of sub-volumes: 3
+// records per dev: 3 * 74930 = 224790
+// cyl/sv: 590
+// cyl: 1770 (3*590)
+// rec/cyl 127
+// tracks/cyl 15
+// sector size: 512
+// sectors: 451858
+// data: 3367 MB, 3447808 KB, 6895616 sectors,
+//  3530555392 bytes, 98070983 records?
+
+#define N_DISK_UNITS 1
+// extern t_stat disk_svc(UNIT *up);
+UNIT disk_unit [N_DISK_UNITS] = {{
+    UDATA (&channel_svc, UNIT_FIX | UNIT_ATTABLE | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, M3381_SECTORS)
+}};
+
+// No disks known to multics had more than 2^24 sectors...
+DEVICE disk_dev = {
+    "DISK",       /*  name */
+    disk_unit,    /* units */
+    NULL,         /* registers */
+    NULL,         /* modifiers */
+    N_DISK_UNITS, /* #units */
+    10,           /* address radix */
+    24,           /* address width */
+    1,            /* address increment */
+    8,            /* data radix */
+    36,           /* data width */
+    NULL,         /* examine */
+    NULL,         /* deposit */ 
+    NULL,         /* reset */
+    NULL,         /* boot */
+    NULL,         /* attach */
+    NULL,         /* detach */
+    NULL,         /* context */
+    DEV_DEBUG,    /* flags */
+    0,            /* debug control flags */
+    0,            /* debug flag names */
+    NULL,         /* memory size change */
+    NULL          /* logical name */
+};
+
+
 
 /*
  * disk_init()
  *
  */
 
-void disk_init()
+void disk_init(void)
 {
     // Nothing needed
 }
@@ -91,7 +135,9 @@ int disk_iom_cmd(chan_devinfo* devinfop)
         cancel_run(STOP_BUG);
         return 1;
     }
+#ifndef QUIET_UNUSED
     UNIT* unitp = &devp->units[dev_code];
+#endif
     
     // TODO: handle cmd etc for given unit
     
@@ -156,7 +202,9 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
         log_msg(ERR_MSG, moi, "Internal error, no device and/or unit for channel 0%o\n", chan);
         return 1;
     }
+#ifndef QUIET_UNUSED
     UNIT* unitp = devp->units;
+#endif
     // BUG: no dev_code
     
     *majorp = 013;  // MPC Device Data Alert

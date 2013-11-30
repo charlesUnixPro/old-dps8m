@@ -10,24 +10,15 @@
 #include "dps8.h"
 
 word36 Ypair[2];        ///< 2-words
-word36 Yblock8[8];      ///< 8-words
-word36 Yblock16[16];    ///< 16-words
+static word36 Yblock8[8];      ///< 8-words
+static word36 Yblock16[16];    ///< 16-words
 
-int bitfieldExtract(int a, int b, int c);
-int bitfieldInsert(int a, int b, int c, int d);
-
-DCDstruct *decodeInstruction(word36 inst, DCDstruct *dst);     // decode instruction into structure
-DCDstruct *fetchInstruction(word18 addr, DCDstruct *dst);      // fetch (+ decode) instrcution at address
-
-t_stat doInstruction(DCDstruct *i);
-
-t_stat doXED(word36 *Ypair);
-
+static t_stat doInstruction(DCDstruct *i);
 
 /**
  * writeOperand() - write (a potentially modified) CY to memory at TPR.CA using whatever modifications are necessary ...
  */
-void
+static void
 writeOperand(DCDstruct *i)
 {
     if (adrTrace)
@@ -48,7 +39,7 @@ writeOperand(DCDstruct *i)
 /**
  * writeOperand2() - write (a potentially modified) YPair to memory at TPR.CA/TPR.CA+1 
  */
-void
+static void
 writeOperand2(DCDstruct *i)//, word36 *YPair)
 {
     if (adrTrace)
@@ -85,7 +76,7 @@ writeOperand2(DCDstruct *i)//, word36 *YPair)
  * get register value indicated by reg for Address Register operations
  * (not for use with address modifications)
  */
-word18 getCrAR(word4 reg)
+static word18 getCrAR(word4 reg)
 {
     if (reg == 0)
         return 0;
@@ -159,7 +150,7 @@ static void scu2words(t_uint64 *words)
     words[7] = cu.IRODD;
 }
 
-void cu_safe_store()
+void cu_safe_store(void)
 {
     // Save current Control Unit Data in hidden temporary so a later SCU instruction running
     // in FAULT mode can save the state as it existed at the time of the fault rather than
@@ -289,6 +280,7 @@ bool _nodlcss[] = {
     false, false, false, true, false, false, false, true, false, false, false, false, false, false, false, false,
 };
 
+#ifndef QUIET_UNUSED
 PRIVATE
 bool _illmod[] = {
     // Tm = 0 (register) R
@@ -304,6 +296,7 @@ bool _illmod[] = {
     // *n   *au    *qu    --     *ic   *al    *al    --     *0     *1     *2     *3     *4     *5     *6     *7
     false, false, false, true, false, false, false, true, false, false, false, false, false, false, false, false,
 };
+#endif
 
 //=============================================================================
 
@@ -326,7 +319,7 @@ t_stat executeInstruction(DCDstruct *ci)
     if ((cpu_dev.dctrl & DBG_TRACE) && sim_deb)
     {
         //if (processorAddressingMode == ABSOLUTE_MODE)
-        if (get_addr_mode() == ABSOLUTE_MODE)
+        if (get_addr_mode() == ABSOLUTE_mode)
         {
             sim_debug(DBG_TRACE, &cpu_dev, "%06o %012llo (%s) %06o %03o(%d) %o %o %o %02o\n", rIC, IWB, disAssemble(IWB), address, opcode, opcodeX, a, i, GET_TM(tag) >> 4, GET_TD(tag) & 017);
         }
@@ -430,10 +423,10 @@ t_stat executeInstruction(DCDstruct *ci)
     return ret;
 }
 
-t_stat DoBasicInstruction(DCDstruct *i), DoEISInstruction(DCDstruct *i);    //, DoInstructionPair(DCDstruct *i);
+static t_stat DoBasicInstruction(DCDstruct *i), DoEISInstruction(DCDstruct *i);    //, DoInstructionPair(DCDstruct *i);
 
 
-t_stat doInstruction(DCDstruct *i)
+static t_stat doInstruction(DCDstruct *i)
 {
     
     CLRF(rIR, I_MIIF);
@@ -469,27 +462,26 @@ t_stat doInstruction(DCDstruct *i)
 //    return DoInstruction(i, Ypair[1]);
 //}
 
-word72 CYpair = 0;
+static word72 CYpair = 0;
 
-word18 tmp18 = 0;
+static word18 tmp18 = 0;
 
-word36 tmp36 = 0;
-word36 tmp36q = 0;      ///< tmp quotent
-word36 tmp36r = 0;      ///< tmp remainder
+static word36 tmp36 = 0;
+static word36 tmp36q = 0;      ///< tmp quotent
+static word36 tmp36r = 0;      ///< tmp remainder
 
-word72 tmp72 = 0;
-word72 trAQ = 0;     ///< a temporary C(AQ)
-word36 trZ = 0;     ///< a temporary C(Z)
-word1  tmp1 = 0;
+static word72 tmp72 = 0;
+static word72 trAQ = 0;     ///< a temporary C(AQ)
+static word36 trZ = 0;     ///< a temporary C(Z)
+static word1  tmp1 = 0;
 
-int32 n;
+static int32 n;
 
 //extern word18 stiTally;         ///< in dps8_cpu.c (only used for sti instruction)
 
-extern EISstruct *e;            ///< for mw EIS ops
 bool bPuls2 = false;
 
-t_stat DoBasicInstruction(DCDstruct *i)
+static t_stat DoBasicInstruction(DCDstruct *i)
 {
     int opcode  = i->opcode;  // get opcode
     
@@ -3600,9 +3592,13 @@ t_stat DoBasicInstruction(DCDstruct *i)
             
             cu.rpts = 1;
             // AL39, page 209
+#ifndef QUIET_UNUSED
             uint tally = (i->address >> 10);
+#endif
             uint c = (i->address >> 7) & 1;
+#ifndef QUIET_UNUSED
             uint term = i->address & 0177;
+#endif
             cu.delta = i->tag;
             if (c)
                 rX[0] = i->address;    // Entire 18 bits
@@ -3872,7 +3868,9 @@ t_stat DoBasicInstruction(DCDstruct *i)
             //x = any octal digit
             {
                 int hi = GETHI(i->IWB);
+#ifndef QUIET_UNUSED
                 int Ysc = (hi >> 15) & 03;
+#endif
                 
                 int EAF = hi & 077770;
                 switch (EAF)
@@ -3939,7 +3937,7 @@ t_stat DoBasicInstruction(DCDstruct *i)
     return 0;
 }
 
-t_stat DoEISInstruction(DCDstruct *i)
+static t_stat DoEISInstruction(DCDstruct *i)
 {
     // XXX not complete .....
     

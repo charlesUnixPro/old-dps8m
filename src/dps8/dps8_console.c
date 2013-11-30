@@ -20,6 +20,44 @@
  See manual AN87.  See also mtb628.
  
  */
+
+MTAB opcon_mod[] = {
+    { MTAB_XTD | MTAB_VDV | MTAB_VALO | MTAB_NC,
+        0, NULL, "AUTOINPUT",
+        opcon_autoinput_set, opcon_autoinput_show, NULL },
+    { 0 }
+};
+
+
+
+#define N_OPCON_UNITS 1
+UNIT opcon_unit [N_OPCON_UNITS] = {{ UDATA(NULL, 0, 0) }};
+
+DEVICE opcon_dev = {
+    "OPCON",       /* name */
+    opcon_unit,    /* units */
+    NULL,          /* registers */
+    opcon_mod,     /* modifiers */
+    N_OPCON_UNITS, /* #units */
+    10,            /* address radix */
+    8,             /* address width */
+    1,             /* address increment */
+    8,             /* address width */
+    8,             /* data width */
+    NULL,          /* examine routine */
+    NULL,          /* deposit routine */
+    NULL,          /* reset routine */
+    NULL,          /* boot routine */
+    NULL,          /* attach routine */
+    NULL,          /* detach routine */
+    NULL,          /* context */
+    DEV_DEBUG,     /* flags */
+    0,             /* debug control flags */
+    0,             /* debug flag names */
+    NULL,          /* memory size change */
+    NULL           /* logical name */
+};
+
 /*
  Copyright (c) 2007-2013 Michael Mondy
  
@@ -33,9 +71,6 @@
 #include <time.h>
 #include <unistd.h>
 //#include "hw6180.h"
-
-extern iom_t iom;
-extern DEVICE *sim_devices[];
 
 typedef struct s_console_state {
     // Hangs off the device structure

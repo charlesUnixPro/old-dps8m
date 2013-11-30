@@ -239,7 +239,9 @@ word36 AddSub36(char op, bool isSigned, word36 op1, word36 op2, word18 flagsToSe
     //op2 &= DMASK;
     
     // perform requested operation
+#ifndef QUIET_UNUSED
     bool overflow2 =   false;
+#endif
     
     switch (op)
     {
@@ -1135,18 +1137,13 @@ int bitfieldReverse(int x)
 // From MM's code ...
 
 
-// Debugging and statistics
-int opt_debug;
 t_uint64 calendar_a; // Used to "normalize" A/Q dumps of the calendar as deltas
 t_uint64 calendar_q;
 //stats_t sys_stats;
 
 
-extern DEVICE cpu_dev;
-extern FILE *sim_deb, *sim_log;
 
 static void msg(enum log_level level, const char *who, const char* format, va_list ap);
-static int _scan_seg(uint segno, int msgs);
 uint ignore_IC = 0;
 uint last_IC;
 uint last_IC_seg;
@@ -1199,6 +1196,7 @@ inline t_uint64 setbits36(t_uint64 x, int p, unsigned n, t_uint64 val)
 }
 
 bool unitTrace = false; // when TRUE unit tracing is enabled ...
+// XXX migrate log_msg and friends to simg debug utilities
 
 void log_msg(enum log_level level, const char* who, const char* format, ...)
 {
@@ -1209,9 +1207,7 @@ void log_msg(enum log_level level, const char* who, const char* format, ...)
         return;
     
     if (level == DEBUG_MSG) {
-        if (opt_debug == 0)
-            return;
-        if (cpu_dev.dctrl == 0 && opt_debug < 1) // todo: should CPU control all debug settings?
+        if (cpu_dev.dctrl == 0) // todo: should CPU control all debug settings?
             return;
     }
     
@@ -1423,6 +1419,7 @@ char *bin2text(t_uint64 word, int n)
     return str;
 }
 
+#if 0
 /*
  Provides a library for reading chunks of an arbitrary number
  of bits from a stream.
@@ -1549,7 +1546,9 @@ int bitstm_get(bitstream_t *bp, size_t len, t_uint64 *word)
 {
     
     *word = 0;
+#ifndef QUIET_UNUSED
     size_t orig_len = len;
+#endif
     int used = bp->used;
     int left = 8 - used;
     if (left != 0 && len < left) {
@@ -1636,5 +1635,5 @@ int bitstm_destroy(bitstream_t *bp)
     free(bp);
     return err;
 }
-
+#endif
 

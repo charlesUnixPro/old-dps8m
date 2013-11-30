@@ -10,12 +10,7 @@
 
 #include "dps8.h"
 
-extern events_t events;
-extern cpu_state_t cpu;
-extern flag_t fault_gen_no_fault;
-
-
-t_uint64 FR;
+static t_uint64 FR;
 
 /*
  FAULT RECOGNITION
@@ -79,7 +74,8 @@ struct dps8faults
 
 typedef struct dps8faults dps8faults;
 
-dps8faults _faultsP[] = { // sorted by priority
+#ifndef QUIET_UNUSED
+static dps8faults _faultsP[] = { // sorted by priority
 //  number  address  mnemonic   name                 Priority    Group
     {   12,     030,    "suf",  "Startup",                  1,	     1,     false },
     {   15,     036,    "exf",  "Execute",                  2,	     1,     false },
@@ -112,6 +108,7 @@ dps8faults _faultsP[] = { // sorted by priority
     {   27,     066,    "???",  "Unassigned",               -1,     -1,     false },
     {   -1,     -1,     NULL,   NULL,                       -1,     -1,     false }
 };
+#endif
 dps8faults _faults[] = {    // sorted by number
     //  number  address  mnemonic   name                 Priority    Group
     {   0,       0 ,    "sdf",  "Shutdown",             	27,	     7,     false },
@@ -150,28 +147,32 @@ dps8faults _faults[] = {    // sorted by number
     {   -1,     -1,     NULL,   NULL,                       -1,     -1,     false }
 };
 
-bool pending_fault = false;     // true when a fault has been signalled, but not processed
+//bool pending_fault = false;     // true when a fault has been signalled, but not processed
 
 
-bool port_interrupts[8] = {false, false, false, false, false, false, false, false };
+#ifndef QUIET_UNUSED
+static bool port_interrupts[8] = {false, false, false, false, false, false, false, false };
+#endif
 
 //-----------------------------------------------------------------------------
 // ***  Constants, unchanging lookup tables, etc
 
-int fault2group[32] = {
+static int fault2group[32] = {
     // from AL39, page 7-3
     7, 4, 5, 5, 7, 4, 5, 4,
     7, 4, 5, 2, 1, 3, 3, 1,
     6, 6, 6, 6, 6, 5, 5, 5,
     5, 5, 0, 0, 0, 0, 0, 2
 };
-int fault2prio[32] = {
+#ifndef QUIET_UNUSED
+static int fault2prio[32] = {
     // from AL39, page 7-3
     27, 10, 11, 17, 26,  9, 15,  5,
     25,  8, 16,  4,  1,  7,  6,  2,
     20, 21, 22, 23, 24, 12, 13, 14,
     18, 19,  0,  0,  0,  0,  0,  3
 };
+#endif
 
 // Fault conditions as stored in the "FR" Fault Register
 // C99 and C++ would allow 64bit enums, but bits past 32 are related to (unimplemented) parity faults.
@@ -193,7 +194,7 @@ typedef struct {
     t_uint64 word;
 } mode_reg_t;
 
-mode_reg_t MR;
+static mode_reg_t MR;
 
 /*
  *  check_events()
@@ -203,7 +204,7 @@ mode_reg_t MR;
  *  have faulted, but if so, it was saved and restarted.
  */
 
-void check_events()
+void check_events (void)
 {
     events.any = events.int_pending || events.low_group || events.group7;
     if (events.any)
@@ -302,7 +303,8 @@ void fault_gen(int f)
  *
  */
 
-int fault_check_group(int group)
+#ifndef QUIET_UNUSED
+static int fault_check_group(int group)
 {
     
     if (group < 1 || group > 7) {
@@ -315,12 +317,11 @@ int fault_check_group(int group)
         return 0;
     return events.low_group <= group;
 }
+#endif
 
 /*
  * fault handler(s).
  */
-DCDstruct *decodeInstruction(word36 inst, DCDstruct *dst);     // decode instruction into structure
-t_stat executeInstruction(DCDstruct *ci);
 
 #ifdef NOT_USED
 t_stat doFaultInstructionPair(DCDstruct *i, word24 fltAddress)
@@ -358,9 +359,7 @@ t_stat doFaultInstructionPair(DCDstruct *i, word24 fltAddress)
 }
 #endif
 
-t_stat doXED(word36 *Ypair);
-
-bool bFaultCycle = false;       // when true then in FAULT CYCLE
+static bool bFaultCycle = false;       // when true then in FAULT CYCLE
 
 void doFault(DCDstruct *i, _fault faultNumber, _fault_subtype subFault, char *faultMsg)
 {
