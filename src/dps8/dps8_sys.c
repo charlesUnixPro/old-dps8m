@@ -311,6 +311,7 @@ DEVICE * sim_devices [] =
     & iom_dev,
     & tape_dev,
     & scu_dev,
+    & clk_dev,
 //    & mpc_dev, // Not needed
 //    & opcon_dev, // Not hooked up yet
 //    & disk_dev, // Not hooked up yet

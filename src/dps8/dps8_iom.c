@@ -45,8 +45,7 @@ MTAB iom_mod [] =
 #define DEBUG_ERR (1 << 2)
 #define DEBUG_DEBUG (1 << 3)
 #define DEBUG_WARN (1 << 4)
-#define DEBUG_MSG (1 << 5)
-#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN | DEBUG_MSG)
+#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN)
 
 static DEBTAB iom_dt [] =
   {
@@ -54,7 +53,6 @@ static DEBTAB iom_dt [] =
     { "INFO", DEBUG_INFO },
     { "ERR", DEBUG_ERR },
     { "DEBUG", DEBUG_DEBUG },
-    { "MSG", DEBUG_MSG },
     { "ALL", DEBUG_ALL }, // don't move as it messes up DBG message
     { NULL, 0 }
   };

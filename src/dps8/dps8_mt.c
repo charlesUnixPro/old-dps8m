@@ -103,8 +103,7 @@ UNIT mt_unit [N_MT_UNITS] = {{
 #define DEBUG_ERR (1 << 2)
 #define DEBUG_DEBUG (1 << 3)
 #define DEBUG_WARN (1 << 4)
-#define DEBUG_MSG (1 << 5)
-#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN | DEBUG_MSG)
+#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN)
 
 static DEBTAB mt_dt [] =
   {
@@ -112,7 +111,6 @@ static DEBTAB mt_dt [] =
     { "INFO", DEBUG_INFO },
     { "ERR", DEBUG_ERR },
     { "DEBUG", DEBUG_DEBUG },
-    { "MSG", DEBUG_MSG },
     { "ALL", DEBUG_ALL }, // don't move as it messes up DBG message
     { NULL, 0 }
   };
@@ -185,7 +183,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
     int* subp = &devinfop->substatus;
     
 
-    sim_debug (DEBUG_MSG, &iom_dev, "mt_iom_cmd: Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
+    sim_debug (DEBUG_DEBUG, &iom_dev, "mt_iom_cmd: Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
             chan, dev_cmd, dev_code);
     
     devinfop->is_read = 1;
@@ -419,7 +417,7 @@ static int extractWord36FromBuffer (uint8 * bufp, t_mtrlnt tbc, uint * words_pro
 
 int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
 {
-    // sim_debug (DEBUG_MSG, &iom_dev, "mt_iom_io: Chan 0%o\n", chan);
+    // sim_debug (DEBUG_DEBUG, &iom_dev, "mt_iom_io: Chan 0%o\n", chan);
     
     if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
         *majorp = 05;   // Real HW could not be on bad channel
@@ -473,7 +471,7 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
         *subp = 0;      // BUG: do we need to detect end-of-record?
         if (sim_tape_wrp(unitp)) *subp |= 1;
         //if (opt_debug > 2)
-        // sim_debug (DEBUG_MSG, &iom_dev, "mt_iom_io: Data moved from tape controller buffer to IOM\n");
+        // sim_debug (DEBUG_DEBUG, &iom_dev, "mt_iom_io: Data moved from tape controller buffer to IOM\n");
         return 0;
     } else {
         // write
@@ -493,7 +491,7 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
 
 t_stat mt_svc(UNIT *up)
 {
-    sim_debug (DEBUG_MSG, &iom_dev, "mt_svc: Calling channel service.\n");
+    sim_debug (DEBUG_DEBUG, &iom_dev, "mt_svc: Calling channel service.\n");
     return channel_svc(up);
 }
 

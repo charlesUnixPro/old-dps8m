@@ -227,8 +227,7 @@ UNIT scu_unit [N_SCU_UNITS] = {{ UDATA(NULL, 0, 0) }};
 #define DEBUG_ERR (1 << 2)
 #define DEBUG_DEBUG (1 << 3)
 #define DEBUG_WARN (1 << 4)
-#define DEBUG_MSG (1 << 5)
-#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN | DEBUG_MSG)
+#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN)
 
 static DEBTAB scu_dt [] =
   {
@@ -236,7 +235,6 @@ static DEBTAB scu_dt [] =
     { "INFO", DEBUG_INFO },
     { "ERR", DEBUG_ERR },
     { "DEBUG", DEBUG_DEBUG },
-    { "MSG", DEBUG_MSG },
     { "ALL", DEBUG_ALL }, // don't move as it messes up DBG message
     { NULL, 0 }
   };
@@ -415,7 +413,7 @@ int scu_set_mask(t_uint64 addr, int port)
             port_pima = p;
             if (port != rcv_port)
               {
-                sim_debug (DEBUG_MSG, &scu_dev, "%s: Found MASK %d assigned to %s on port %d\n", moi, p, adev2text(scu.ports[port].type), port);
+                sim_debug (DEBUG_DEBUG, &scu_dev, "%s: Found MASK %d assigned to %s on port %d\n", moi, p, adev2text(scu.ports[port].type), port);
               }
             ++ port_found;
         }
@@ -423,7 +421,7 @@ int scu_set_mask(t_uint64 addr, int port)
 #ifndef QUIET_UNUSED
             cpu_pima = p;
 #endif
-             sim_debug (DEBUG_MSG, &scu_dev, "%s: Found MASK %d assigned to invoking CPU on port %d\n", moi, p, rcv_port);
+             sim_debug (DEBUG_DEBUG, &scu_dev, "%s: Found MASK %d assigned to invoking CPU on port %d\n", moi, p, rcv_port);
             ++ cpu_found;
         }
     }
@@ -439,7 +437,7 @@ int scu_set_mask(t_uint64 addr, int port)
         cancel_run(STOP_WARN);
     }
     if (! port_found) {
-        sim_debug (DEBUG_MSG, &scu_dev, "%s: No masks assigned to port %d\n", moi, port);
+        sim_debug (DEBUG_DEBUG, &scu_dev, "%s: No masks assigned to port %d\n", moi, port);
         return 0;
     }
     if (port_found > 1)
@@ -457,7 +455,7 @@ int scu_set_mask(t_uint64 addr, int port)
     scu.interrupts[port_pima].exec_intr_mask = 0;
     scu.interrupts[port_pima].exec_intr_mask |= (getbits36(reg_A, 0, 16) << 16);
     scu.interrupts[port_pima].exec_intr_mask |= getbits36(reg_Q, 0, 16);
-    //sim_debug (DEBUG_MSG, &scu_dev, "%s: PIMA %c: EI mask set to %s\n", moi, port_pima + 'A', bin2text(scu.interrupts[port_pima].exec_intr_mask, 32));
+    //sim_debug (DEBUG_DEBUG, &scu_dev, "%s: PIMA %c: EI mask set to %s\n", moi, port_pima + 'A', bin2text(scu.interrupts[port_pima].exec_intr_mask, 32));
     return 0;
 }
 
@@ -903,7 +901,7 @@ int scu_cioc(t_uint64 addr)
     }
     int port = word & 7;
     sim_debug (DEBUG_INFO, &scu_dev, "\n");
-    sim_debug (DEBUG_MSG, &scu_dev, "scu_cioc: Contents of %llo are: %llo => port %d\n", addr, word, port);
+    sim_debug (DEBUG_DEBUG, &scu_dev, "scu_cioc: Contents of %llo are: %llo => port %d\n", addr, word, port);
     // OK ... what's a connect signal (as opposed to an interrupt?
     // A connect signal does the following (AN70, 8-7):
     //  IOM target: connect strobe to IOM
@@ -919,7 +917,7 @@ int scu_cioc(t_uint64 addr)
             /* XXX Evil: ++ cpu_dev.dctrl */;
         }
     }
-    sim_debug (DEBUG_MSG, &scu_dev, "scu_cioc: Connect sent to port %d => %d\n", port, scu.ports[port]);
+    sim_debug (DEBUG_DEBUG, &scu_dev, "scu_cioc: Connect sent to port %d => %d\n", port, scu.ports[port]);
     
     // we only have one IOM, so signal it
     // todo: sanity check port connections
@@ -988,12 +986,12 @@ int scu_set_interrupt(int inum)
     
     for (int pima = 0; pima < ARRAY_SIZE(scu.interrupts); ++pima) {
         if (! scu.interrupts[pima].avail) {
-            sim_debug (DEBUG_MSG, &scu_dev, "%s: PIMA %c: Mask is not available.\n",
+            sim_debug (DEBUG_DEBUG, &scu_dev, "%s: PIMA %c: Mask is not available.\n",
                     moi, pima + 'A');
             continue;
         }
         if (scu.interrupts[pima].mask_assign.unassigned) {
-            sim_debug (DEBUG_MSG, &scu_dev, "%s: PIMA %c: Mask is not assigned.\n",
+            sim_debug (DEBUG_DEBUG, &scu_dev, "%s: PIMA %c: Mask is not assigned.\n",
                     moi, pima + 'A');
             continue;
         }
@@ -1002,7 +1000,7 @@ int scu_set_interrupt(int inum)
         if ((mask & (1<<inum)) == 0) {
             sim_debug (DEBUG_INFO, &scu_dev, "%s: PIMA %c: Port %d is masked against interrupts.\n",
                     moi, 'A' + pima, port);
-            sim_debug (DEBUG_MSG, &scu_dev, "%s: Mask: %s\n", moi, bin2text(mask, 32));
+            sim_debug (DEBUG_DEBUG, &scu_dev, "%s: Mask: %s\n", moi, bin2text(mask, 32));
         } else {
             if (scu.ports[port].type != ADEV_CPU)
                 sim_debug (DEBUG_WARN, &scu_dev, "%s: PIMA %c: Port %d should receive interrupt %d, but the device is not a cpu.\n",

@@ -5,12 +5,55 @@
 static t_stat clk_svc(UNIT *up);
 UNIT TR_clk_unit [N_CLK_UNITS] = {{ UDATA(&clk_svc, UNIT_IDLE, 0) }};
 
+#define DEBUG_NOTIFY (1 << 0)
+#define DEBUG_INFO (1 << 1)
+#define DEBUG_ERR (1 << 2)
+#define DEBUG_DEBUG (1 << 3)
+#define DEBUG_WARN (1 << 4)
+#define DEBUG_ALL (DEBUG_NOTIFY | DEBUG_INFO | DEBUG_ERR | DEBUG_DEBUG | DEBUG_WARN )
+
+static DEBTAB clk_dt [] =
+  {
+    { "NOTIFY", DEBUG_NOTIFY },
+    { "INFO", DEBUG_INFO },
+    { "ERR", DEBUG_ERR },
+    { "DEBUG", DEBUG_DEBUG },
+    { "ALL", DEBUG_ALL }, // don't move as it messes up DBG message
+    { NULL, 0 }
+  };
+
+DEVICE clk_dev = {
+    "CLK",       /* name */
+    TR_clk_unit,    /* units */
+    NULL,        /* registers */
+    NULL,        /* modifiers */
+    N_CLK_UNITS, /* #units */
+    10,          /* address radix */
+    8,           /* address width */
+    1,           /* address increment */
+    8,           /* data radix */
+    8,           /* data width */
+    NULL,        /* examine routine */
+    NULL,        /* deposit routine */
+    NULL,        /* reset routine */
+    NULL,        /* boot routine */
+    NULL,        /* attach routine */
+    NULL,        /* detach routine */
+    NULL,        /* context */
+    DEV_DEBUG,   /* flags */
+    0,           /* debug control flags */
+    clk_dt,      /* debug flag names */
+    NULL,        /* memory size change */
+    NULL         /* logical name */
+};
+
+
 static t_stat clk_svc(UNIT *up)
 {
     // only valid for TR
     (void) sim_rtcn_calb (CLK_TR_HZ, TR_CLK);   // calibrate clock
     uint32 t = sim_is_active(&TR_clk_unit[0]);
-    log_msg(INFO_MSG, "SYS::clock::service", "TR has %d time units left\n", t);
+    sim_debug (DEBUG_INFO, & clk_dev, "clk_svc: TR has %d time units left\n", t);
     return 0;
 }
 
@@ -20,26 +63,27 @@ static t_stat clk_svc(UNIT *up)
 static int activate_timer (void)
 {
     uint32 t;
-    log_msg(DEBUG_MSG, "SYS::clock", "TR is %lld %#llo.\n", reg_TR, reg_TR);
+    sim_debug (DEBUG_DEBUG, & clk_dev, "clk_svc: TR has %d time units left\n", t);
+    sim_debug (DEBUG_DEBUG, & clk_dev, "activate_timer: TR is %lld %#llo.\n", reg_TR, reg_TR);
     if (bit_is_neg(reg_TR, 27)) {
         if ((t = sim_is_active(&TR_clk_unit[0])) != 0)
-            log_msg(DEBUG_MSG, "SYS::clock", "TR cancelled with %d time units left.\n", t);
+            sim_debug (DEBUG_DEBUG, & clk_dev, "activate_timer: TR cancelled with %d time units left.\n", t);
         else
-            log_msg(DEBUG_MSG, "SYS::clock", "TR loaded with negative value, but it was alread stopped.\n", t);
+            sim_debug (DEBUG_DEBUG, & clk_dev, "activate_timer: TR loaded with negative value, but it was alread stopped.\n", t);
         sim_cancel(&TR_clk_unit[0]);
         return 0;
     }
     if ((t = sim_is_active(&TR_clk_unit[0])) != 0) {
-        log_msg(DEBUG_MSG, "SYS::clock", "TR was still running with %d time units left.\n", t);
+        sim_debug (DEBUG_DEBUG, & clk_dev, "activate_timer: TR was still running with %d time units left.\n", t);
         sim_cancel(&TR_clk_unit[0]);   // BUG: do we need to cancel?
     }
     
     (void) sim_rtcn_init(CLK_TR_HZ, TR_CLK);
     sim_activate(&TR_clk_unit[0], reg_TR);
     if ((t = sim_is_active(&TR_clk_unit[0])) == 0)
-        log_msg(DEBUG_MSG, "SYS::clock", "TR is not running\n", t);
+        sim_debug (DEBUG_DEBUG, & TR_clk_unit, "activate_timer: TR is not running\n", t);
     else
-        log_msg(DEBUG_MSG, "SYS::clock", "TR is now running with %d time units left.\n", t);
+        sim_debug (DEBUG_DEBUG, & TR_clk_unit, "activate_timer: TR is now running with %d time units left.\n", t);
     return 0;
 }
 #endif

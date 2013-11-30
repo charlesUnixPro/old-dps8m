@@ -2886,6 +2886,7 @@ word18 getBARaddress(word18 addr);
 /* dps8_clk.c */
 
 extern UNIT TR_clk_unit [];
+extern DEVICE clk_dev;
 
 /* dps8_console.c */
 
