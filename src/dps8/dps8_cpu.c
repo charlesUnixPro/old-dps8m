@@ -415,9 +415,6 @@ t_stat cpu_reset_mm (DEVICE *dptr)
 #endif
     cpu.cycle = FETCH_cycle;
 
-    //calendar_a = 0xdeadbeef;
-    //calendar_q = 0xdeadbeef;
-    
 #if FEAT_INSTR_STATS
     memset(&sys_stats, 0, sizeof(sys_stats));
 #endif

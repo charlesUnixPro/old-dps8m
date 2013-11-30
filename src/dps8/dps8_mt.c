@@ -439,7 +439,6 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
         return 1;
     } else if (tape_statep->io_mode == read_mode) {
         // read
-        //if (bitstm_get(tape_statep->bitsp, 36, wordp) != 0) {
         if (extractWord36FromBuffer (tape_statep->bufp, tape_statep->tbc, &tape_statep->words_processed, wordp) != 0) {
             // BUG: There isn't another word to be read from the tape buffer,
             // but the IOM wants  another word.

@@ -318,9 +318,6 @@ t_stat scu_reset (DEVICE *dptr)
   }
 
 
-t_uint64 calendar_a; // Used to "normalize" A/Q dumps of the calendar as deltas
-t_uint64 calendar_q;
-
 stats_t sys_stats;
 
 cpu_ports_t cpu_ports;
@@ -864,9 +861,6 @@ int scu_get_calendar(t_uint64 addr)
     
     reg_Q = now & MASK36;
     reg_A = (now >> 36) & MASK36;
-    
-    calendar_a = reg_A; // only for debugging
-    calendar_q = reg_Q; // only for debugging
     
     return 0;
 }
