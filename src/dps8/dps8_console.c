@@ -10,6 +10,9 @@
 
 #include "dps8.h"
 
+// XXX This used were we assume that only one unit exists
+#define ASSUME0 0
+
 /*
  console.c -- operator's console
  
@@ -218,10 +221,9 @@ static int con_check_args(const char* moi, int chan, int dev_code, int* majorp, 
     
 // XXX iom_t should oughtta be private
     //*devpp = iom.channels[chan].dev;
-    //DEVICE *devp = *devpp;
-    //if (devpp == NULL) {
-    DEVICE* devp = & iom_dev;
-    if (devp == NULL) {
+    *devpp = get_iom_channel_dev (ASSUME0, chan);
+    DEVICE *devp = *devpp;
+    if (devpp == NULL) {
         *majorp = 05;
         *subp = 1;
         sim_debug (DBG_ERR, & opcon_dev, "con_check_args: Internal error, no device for channel 0%o\n", chan);
@@ -511,7 +513,7 @@ static void check_keyboard(int chan)
     }
 // XXX iom_t should oughtta be private
     //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = & iom_dev;
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
     if (devp == NULL) {
         sim_debug (DBG_WARN, & opcon_dev, "check_keyboard: No device\n");
         return;

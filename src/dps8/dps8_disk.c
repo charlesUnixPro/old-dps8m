@@ -10,6 +10,9 @@
 
 #include "dps8.h"
 
+// XXX We use this where we assume there is only one unit
+#define ASSUME0 0
+
 /*
  disk.c -- disk drives
  
@@ -120,7 +123,7 @@ int disk_iom_cmd(chan_devinfo* devinfop)
     
 // XXX iom_t should oughtta be private
     //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = & iom_dev;
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
     if (devp == NULL || devp->units == NULL) {
         devinfop->have_status = 1;
         *majorp = 05;
@@ -200,7 +203,7 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     
 // XXX iom_t should oughtta be private
     //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = & iom_dev;
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;

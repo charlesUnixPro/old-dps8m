@@ -350,6 +350,23 @@ REG iom_reg [] =
 //#include "iom.hincl"
 
 typedef struct {
+    int chan;
+    // BUG/TODO: represent "masked" state
+    chn_state state;
+    int n_list;     // could be flag for first_list, but counter aids debug
+    flag_t need_indir_svc;  // Note: Currently equivalent to forcing control=2
+    flag_t have_status;         // from device
+    chan_status_t status;
+    UNIT* unitp;    // used for sim_activate() timing; BUG: steal from chn DEV
+    // pcw_t pcw;           // received from the connect channel
+    dcw_t dcw;      // most recent (in progress) dcw
+    int control;    // Indicates next action; mostly from PCW/IDCW ctrl fields
+    int err;        // BUG: temporary hack to replace "ret" auto vars...
+    chan_devinfo *devinfop;
+    lpw_t lpw;
+} channel_t;
+
+typedef struct {
     uint iom_num;
     int ports[8]; // CPU/IOM connectivity; designated a..h; negative to disable
     int scu_port; // which port on the SCU(s) are we connected to?
@@ -368,6 +385,10 @@ typedef struct {
 
 static iom_t iom; // only one for now
 
+DEVICE * get_iom_channel_dev (uint iom_unit_num, int chan)
+  {
+    return iom.channels[chan].dev;
+  }
 
 // ============================================================================
 // === Typedefs
@@ -2969,7 +2990,6 @@ static t_stat iom_set_config (UNIT * uptr, int32 value, char * cptr, void * desc
                         break;
                       } 
                     p -> config_sw_port_sysinit_enable [port_num] = n;
-out_msg ("enable %d %d %d\n", unit_num, port_num, n);
                   }
                 else if (strcmp (name, "HALFSIZE") == 0)
                   {

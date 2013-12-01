@@ -2190,22 +2190,6 @@ typedef struct {
     uint32 idcw;    // ptr to most recent dcw, idcw, ...
 } lpw_t;
 
-typedef struct {
-    int chan;
-    // BUG/TODO: represent "masked" state
-    chn_state state;
-    int n_list;     // could be flag for first_list, but counter aids debug
-    flag_t need_indir_svc;  // Note: Currently equivalent to forcing control=2
-    flag_t have_status;         // from device
-    chan_status_t status;
-    UNIT* unitp;    // used for sim_activate() timing; BUG: steal from chn DEV
-    // pcw_t pcw;           // received from the connect channel
-    dcw_t dcw;      // most recent (in progress) dcw
-    int control;    // Indicates next action; mostly from PCW/IDCW ctrl fields
-    int err;        // BUG: temporary hack to replace "ret" auto vars...
-    chan_devinfo *devinfop;
-    lpw_t lpw;
-} channel_t;
 
 // System-wide info and options not tied to a specific CPU, IOM, or SCU
 typedef struct {
@@ -2936,6 +2920,7 @@ t_stat doXED(word36 *Ypair);
 
 /* dps8_iom.c */
 
+DEVICE * get_iom_channel_dev (uint iom_unit_num, int chan);
 void iom_init(void);
 t_stat iom_boot(int32 unit_num, DEVICE *dptr);
 void iom_interrupt(void);

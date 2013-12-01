@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include "dps8.h"
 
+// XXX Use this where we assume only a single unit
+#define ASSUME0 0
 
 /*
  mt.c -- mag tape
@@ -108,11 +110,20 @@ static DEBTAB mt_dt [] =
     { NULL, 0 }
   };
 
+#define UNIT_WATCH UNIT_V_UF
+
+static MTAB mt_mod [] =
+  {
+    { UNIT_WATCH, 1, "WATCH", "WATCH", NULL, NULL },
+    { UNIT_WATCH, 0, "NOWATCH", "NOWATCH", NULL, NULL },
+    { 0 }
+  };
+
 DEVICE tape_dev = {
     "TAPE",       /* name */
     mt_unit,      /* units */
     NULL,         /* registers */
-    NULL,         /* modifiers */
+    mt_mod,         /* modifiers */
     N_MT_UNITS,   /* #units */
     10,           /* address radix */
     31,           /* address width */
@@ -199,7 +210,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
     
     // iom should oughta be private
     //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = & iom_dev;
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
     if (devp == NULL || devp->units == NULL) {
         devinfop->have_status = 1;
         *majorp = 05;
@@ -276,6 +287,9 @@ int mt_iom_cmd(chan_devinfo* devinfop)
                     return 1;
                 }
             }
+            // XXX put unit number in here...
+            if (unitp->flags & UNIT_WATCH)
+              out_msg ("Tape reads a record\n");
             tape_statep -> tbc = tbc;
             tape_statep -> words_processed = 0;
 
@@ -307,6 +321,10 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             int ret;
             if ((ret = sim_tape_sprecr(unitp, &tbc)) == 0) {
                 sim_debug (DBG_NOTIFY, &iom_dev, "mt_iom_cmd: Backspace one record\n");
+                // XXX put unit number in here...
+                if (unitp->flags & UNIT_WATCH)
+                  out_msg ("Tape backspaces one record\n");
+
                 devinfop->have_status = 1;  // TODO: queue
                 *majorp = 0;
                 *subp = 0;
@@ -429,7 +447,7 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     
     // iom should oughta be private
     //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = & iom_dev;
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;
