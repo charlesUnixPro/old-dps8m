@@ -12,13 +12,33 @@
 
 #include "dps8.h"
 
+// XXX This marks places in the code where it is assumed that only one
+// IOM exists
+#define ASSUME0 0
 
+static t_stat iom_show_mbx (FILE *st, UNIT *uptr, int val, void *desc);
+static t_stat iom_show_config (FILE *st, UNIT *uptr, int val, void *desc);
+static t_stat iom_set_config (UNIT * uptr, int32 value, char * cptr, void * desc);
+static t_stat iom_show_nunits (FILE *st, UNIT *uptr, int val, void *desc);
+static t_stat iom_set_nunits (UNIT * uptr, int32 value, char * cptr, void * desc);
+
+#define N_IOM_UNITS_MAX 4
 #define N_IOM_UNITS 1
-UNIT iom_unit [N_IOM_UNITS] = {{ UDATA(&iom_svc, 0, 0) }};
+
+UNIT iom_unit [N_IOM_UNITS_MAX] =
+  {
+    { UDATA(&iom_svc, 0, 0) },
+    { UDATA(&iom_svc, 0, 0) },
+    { UDATA(&iom_svc, 0, 0) },
+    { UDATA(&iom_svc, 0, 0) },
+  };
+
+#define UNIT_NUM(uptr) ((uptr) - iom_unit)
+
 MTAB iom_mod [] =
   {
     {
-       MTAB_XTD | MTAB_VDV | MTAB_NMO | MTAB_NC, /* mask */
+       MTAB_XTD | MTAB_VUN | MTAB_NMO | MTAB_NC, /* mask */
       0,            /* match */
       "MBX",        /* print string */
       NULL,         /* match string */
@@ -27,13 +47,22 @@ MTAB iom_mod [] =
       NULL          /* value descriptor */
     },
     {
-      MTAB_XTD | MTAB_VDV | MTAB_NMO | MTAB_VALR, /* mask */
+      MTAB_XTD | MTAB_VUN | MTAB_NMO | MTAB_VALR, /* mask */
       0,            /* match */
       "CONFIG",     /* print string */
-      NULL,         /* match string */
-      NULL,         /* validation routine */
+      "CONFIG",         /* match string */
+      iom_set_config,         /* validation routine */
       iom_show_config, /* display routine */
       NULL          /* value descriptor */
+    },
+    {
+      MTAB_XTD | MTAB_VDV | MTAB_NMO | MTAB_VALR, /* mask */
+      0,            /* match */
+      "NUNITS",     /* print string */
+      "NUNITS",         /* match string */
+      iom_set_nunits, /* validation routine */
+      iom_show_nunits, /* display routine */
+      "Number of IOM units in the system" /* value descriptor */
     },
     {
       0
@@ -167,53 +196,92 @@ PRIVATE void store_abs_pair(word24 addr, word36 even, word36 odd)
 
 
 /*
-  Interrupt base 1200(8)
-                      001 010 000 000
+  Interrupt base 1400(8)  (IOM Base Address)
+                      001 100 000 000     < Multics value
 sw:           xxx xxx xxx xxx
                    11 111 111 112 222
       012 345 678 901 234 567 890 123
 
-    Switch setting for multics: 12(8)
+    Switch setting for multics: 14(8)
 */
 
-#define CONFIG_SW_MULTICS_INTR_BASE 012
+#define CONFIG_SW_MULTICS_IOM_BASE_ADDRESS 014
+
+
 
 /*
-  Mailbox base (unit A) 1400(8)
-                      100 400 000 000
+  Mailbox base (unit A) 1400(8) (Address of Interrupt Multiplex Word)
+                      001 100 000 000
 sw:                   xxx xxx x    xx
                    11 111 111 112 222
       012 345 678 901 234 567 890 123
 
-    Switch setting for multics: 140(8)
+    Switch setting for multics: 001 100 000
 */
 
-#define CONFIG_SW_MULTICS_MBOX_BASE 014
+#define CONFIG_SW_MULTICS_MULTIPLEX_BASE_ADDRESS 0140
 
 
 
 // FIXME: Allow two IOMs; place data in UNIT structure
 
-enum config_sw_os { CONFIG_SW_SDT_GCOS, CONFIG_SW_EXT_GCOS, CONFIG_SW_MULTICS };
-static int config_sw_os = CONFIG_SW_MULTICS; // Three position switch; Permamently fixed at Multics
-enum config_sw_blct { CONFIG_SW_BLCT_CARD, CONFIG_SW_BLCT_TAPE };
+enum config_sw_os_ { CONFIG_SW_STD_GCOS, CONFIG_SW_EXT_GCOS, CONFIG_SW_MULTICS };
 
-static int config_sw_channel_mbx_base_address = 
-  CONFIG_SW_MULTICS_MBOX_BASE;  // AKA IOM Base Addr: 12 toggles
-static int config_sw_interrupt_multiplex_base_address = 
-  CONFIG_SW_MULTICS_INTR_BASE; // 9 toggles
-static int config_sw_bootload_card_tape = CONFIG_SW_BLCT_TAPE; // 1 toggles
-static int config_sw_bootload_magtape_chan = 0; // 6 toggles  // Which IOM channel is the Boot Tape drive conneted to
-static int config_sw_bootload_cardrdr_chan = 1; // 6 toggles // Which IOM channel is the Boot card reader conneted to
-// static int config_sw_bootload_bootload =    // pushbutton
-// static int config_sw_bootload_sysinit =    // pushbutton
-static int config_sw_bootload_port = 0; // 1 toggle // XXX what is this
-static int config_sw_port_addr [8] = { 0, 1, 2, 3, 4, 5, 6, 7 }; // 3 toggles per port // XXX what is this
-static int config_sw_port_interlace [8] = { 0, 0, 0, 0, 0, 0, 0, 0 }; // 1 toggle per port // XXX what is this
-static int config_sw_port_enable [8] = { 0, 0, 0, 0, 0, 0, 0, 0 }; // 1 toggle per port // XXX what is this
-static int config_sw_port_sysinit_enable [8] = { 0, 0, 0, 0, 0, 0, 0, 0 }; // 1 toggle per port // XXX what is this
-static int config_sw_port_halfsize [8] = { 0, 0, 0, 0, 0, 0, 0, 0 }; // 1 toggle per port // XXX what is this
+// Boot device: CARD/TAPE;
+enum config_sw_blct_ { CONFIG_SW_BLCT_CARD, CONFIG_SW_BLCT_TAPE };
 
+
+struct unit_data
+  {
+    // Configuration switches
+    
+    // Interrupt multiplex base address: 12 toggles
+    uint config_sw_iom_base_address; // = CONFIG_SW_MULTICS_IOM_BASE_ADDRESS
+
+    // Mailbox base aka IOM base address: 9 toggles
+    // Note: The IOM number is encoded in the lower two bits
+    uint config_sw_multiplex_base_address; //  = CONFIG_SW_MULTICS_MULTIPLEX_BASE_ADDRESS;
+
+    // OS: Three position switch: GCOS, EXT GCOS, Multics
+    enum config_sw_os_ config_sw_os; // = CONFIG_SW_MULTICS;
+
+    // Bootload device: Toggle switch CARD/TAPE
+    enum config_sw_blct_ config_sw_bootload_card_tape; // = CONFIG_SW_BLCT_TAPE; 
+
+    // Bootload tape IOM channel: 6 toggles
+    uint config_sw_bootload_magtape_chan; // = 0; 
+
+    // Bootload cardreader IOM channel: 6 toggles
+    uint config_sw_bootload_cardrdr_chan; // = 1;
+
+    // Bootload: pushbutton
+ 
+    // Sysinit: pushbutton
+
+    // Bootload SCU port: 3 toggle
+    uint config_sw_bootload_port; // = 0; 
+
+    // 8 Ports: CPU/IOM connectivity
+
+#define IOM_NPORTS 8
+    // Port configuration: 3 toggles/port 
+    // Which CPU number is this port attached to // XXX Is this right?
+    uint config_sw_port_addr [IOM_NPORTS]; // = { 0, 1, 2, 3, 4, 5, 6, 7 }; 
+
+    // Port interlace: 1 toggle/port
+    uint config_sw_port_interlace [IOM_NPORTS]; // = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    // Port enable: 1 toggle/port
+    uint config_sw_port_enable [IOM_NPORTS]; // = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    // Port system initialize enable: 1 toggle/port // XXX What is this
+    uint config_sw_port_sysinit_enable [IOM_NPORTS]; // = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    // Port half-size: 1 toggle/port // XXX what is this
+    uint config_sw_port_halfsize [IOM_NPORTS]; // = { 0, 0, 0, 0, 0, 0, 0, 0 };
+  };
+
+static struct unit_data unit_data [N_IOM_UNITS_MAX];
 
 REG iom_reg [] =
   {
@@ -281,7 +349,24 @@ REG iom_reg [] =
 #include <sys/time.h>
 //#include "iom.hincl"
 
-iom_t iom; // only one for now
+typedef struct {
+    uint iom_num;
+    int ports[8]; // CPU/IOM connectivity; designated a..h; negative to disable
+    int scu_port; // which port on the SCU(s) are we connected to?
+    struct {
+        enum dev_type type;
+        DEVICE* dev; // attached device; points into sim_devices[]
+        // The channel "boards" do *not* point into the UNIT array of the
+        // IOM entry within sim_devices[]. These channel "boards" are used
+        // only for simulation of async operation (that is as arguments for
+        // sim_activate()). Since they carry no state information, they
+        // are dynamically allocated by the IOM as needed.
+        UNIT* board; // represents the channel; See comment just above
+        channel_t channel_state;
+    } channels[max_channels];
+} iom_t;
+
+static iom_t iom; // only one for now
 
 
 // ============================================================================
@@ -377,7 +462,7 @@ static int run_channel(int chan);
 
 #define Mem M
 
-static void init_memory_iom(void)
+static void init_memory_iom (uint unit_num)
 {
     // On the physical hardware, settings of various switchs are reflected
     // into memory.  We provide no support for simulation of of the physical
@@ -394,7 +479,9 @@ static void init_memory_iom(void)
     // " MPC itself.
     
     sim_debug(DBG_INFO, &iom_dev, "init_memory_iom: Performing load of eleven words from IOM bootchanel to memory.\n");
+
     int base = 014;         // 12 bits; IOM base
+
     // bootload_io.alm insists that pi_base match
     // template_slt_$iom_mailbox_absloc
     int pi_base = 01200;    // 15 bits; interrupt cells
@@ -431,7 +518,8 @@ static void init_memory_iom(void)
     // bootload_tape_label.alm says 04000, 43A239854 says 040000.  Since 43A239854 says
     // "no change", 40000 is correct; 4000 would be a large tally
     /* 4*/ Mem[base_addr + 010] = 040000;       // Connect channel LPW; points to PCW at 000000
-    int mbx = base_addr + 4 * config_sw_bootload_magtape_chan;
+    // XXX assumes unit 0
+    int mbx = base_addr + 4 * unit_data [ASSUME0] . config_sw_bootload_magtape_chan;
     /* 5*/ Mem[mbx] = 03020003;             // Boot device LPW; points to IDCW at 000003
     /* 6*/ Mem[4] = 030 << 18;              // Second IDCW: IOTD to loc 30 (startup fault vector)
     
@@ -448,7 +536,7 @@ static void init_memory_iom(void)
     // of the 2nd word of the PCW?  The lower 27 bits of the odd word of a PCW should
     // be all zero.
 // XXX port is from the config_sw_port ??
-    /* 9*/ Mem[1] = ((t_uint64) config_sw_bootload_magtape_chan << 27) /*| port*/;       // 2nd word of PCW pair
+    /* 9*/ Mem[1] = ((t_uint64) (unit_data [ASSUME0] . config_sw_bootload_magtape_chan) << 27) /*| port*/;       // 2nd word of PCW pair
     
     // following verified correct; instr 362 will not yield 1572 with a different shift
     /*10*/ Mem[2] = ((t_uint64) base_addr << 18) | pi_base | iom;   // word after PCW (used by program)
@@ -605,7 +693,7 @@ t_stat iom_boot(int32 unit_num, DEVICE *dptr)
 
     sim_debug (DBG_DEBUG, &iom_dev, "iom_boot starting\n");
     // initialize memory with boot program
-    init_memory_iom ();
+    init_memory_iom (unit_num);
 
     // simulate $CON
     iom_interrupt ();
@@ -704,17 +792,6 @@ void iom_init(void)
         }
     }
 
-  // XXX Attach a tape device to the boot device channel
-
-  iom . channels [config_sw_bootload_magtape_chan] . type = DEVT_TAPE;
-  iom . channels [config_sw_bootload_magtape_chan] . dev = & tape_dev;
-  iom . channels [config_sw_bootload_magtape_chan] . board = & mt_unit [0]; // XXX assume only one tape drive
-
-  channel_t* chanp = get_chan(config_sw_bootload_magtape_chan);
-  if (chanp != NULL)
-    {
-      chanp -> unitp = & mt_unit [0];
-    }
 }
 
 // ============================================================================
@@ -757,6 +834,19 @@ t_stat iom_reset(DEVICE *dptr)
         }
     }
     
+  // XXX Attach a tape device to the boot device channel
+  // XXX there variables need to be merged
+  iom . channels [unit_data [ASSUME0] . config_sw_bootload_magtape_chan] . type = DEVT_TAPE;
+  iom . channels [unit_data [ASSUME0] . config_sw_bootload_magtape_chan] . dev = & tape_dev;
+  iom . channels [unit_data [ASSUME0] . config_sw_bootload_magtape_chan] . board = & mt_unit [ASSUME0]; // XXX assume only one tape drive
+
+  channel_t* chanp = get_chan(unit_data [ASSUME0] . config_sw_bootload_magtape_chan);
+  if (chanp != NULL)
+    {
+      // XXX Assumes that the boot drive is unit 0; should check config switches
+      chanp -> unitp = & mt_unit [0];
+    }
+
     return 0;
 }
 
@@ -1172,7 +1262,21 @@ static int run_channel(int chan)
         }
         
         // BUG: enable.   BUG: enabling kills the boot...
-        // chanp->have_status = 0;  // we just processed it
+        // CAC: enabling this prevents the status from being written.
+        // CAC: I have a theory that the IOM doesn't write the status
+        // on boot, and the IOX does. This explains why the boot program
+        // checks the high bit of the status to decide if this is an
+        // IOX, yet writing the status will set set the high bit.
+        // Theory support: 43A239854 600B Engineering Product Spec.:
+        //   3.7 CONNECT CHANNEL
+        //      "... The connect channel does not interrupt or store status."
+        // The only I/O operation is the simulated $CON to start the transfer.
+        //   3.2.5 Channel and Device Status Words
+        //      "When the IOM Central performs a status service for a
+        //       channel, it will store two words into the y-pair defined
+        //       by the SW for the channel.:
+
+        chanp->have_status = 0;  // we just processed it
         
         // If we reach this point w/o resetting the state to chn_need_status,
         // we're busy and the channel hasn't terminated operations, so we don't
@@ -2488,7 +2592,7 @@ static int send_general_interrupt(int chan, int pic)
 
 // ============================================================================
 
-int iom_show_mbx(FILE *st, UNIT *uptr, int val, void *desc)
+static int iom_show_mbx(FILE *st, UNIT *uptr, int val, void *desc)
 {
     if (desc != NULL)
       {
@@ -2555,23 +2659,40 @@ int iom_show_mbx(FILE *st, UNIT *uptr, int val, void *desc)
 
 // ============================================================================
 
-int iom_show_config(FILE *st, UNIT *uptr, int val, void *desc)
+static t_stat iom_show_nunits (FILE *st, UNIT *uptr, int val, void *desc)
+  {
+    out_msg("Number of IOM units in system is %d\n", iom_dev . numunits);
+    return SCPE_OK;
+  }
+
+static t_stat iom_set_nunits (UNIT * uptr, int32 value, char * cptr, void * desc)
+  {
+    int n = atoi (cptr);
+    if (n < 1 || n > N_IOM_UNITS_MAX)
+      return SCPE_ARG;
+    if (n > 2)
+      out_msg ("Warning: Multics supports 2 IOMs maximum\n");
+    iom_dev . numunits = n;
+    return SCPE_OK;
+  }
+
+static t_stat iom_show_config(FILE *st, UNIT *uptr, int val, void *desc)
 {
-    if (desc != NULL)
+    int unit_num = UNIT_NUM (uptr);
+    if (unit_num < 0 || unit_num >= iom_dev . numunits)
       {
-        sim_debug (DBG_NOTIFY, &iom_dev, "iom_show_config: FILE=%p, uptr=%p, val=%d, desc=%p\n",
-                st, uptr, val, desc);
+        sim_debug (DBG_ERR, & iom_dev, "iom_show_config: Invalid unit number %d\n", unit_num);
+        out_msg ("error: invalid unit number %d\n", unit_num);
+        return SCPE_ARG;
       }
-    else
-      {
-        sim_debug (DBG_NOTIFY, &iom_dev, "iom_show_config: FILE=%p, uptr=%p, val=%d, desc=%p %s\n",
-                st, uptr, val, desc, desc);
-      }
-    
+
+    out_msg ("IOM unit number %d\n", unit_num);
+    struct unit_data * p = unit_data + unit_num;
+
     char * os = "<out of range>";
-    switch (config_sw_os)
+    switch (p -> config_sw_os)
       {
-        case CONFIG_SW_SDT_GCOS:
+        case CONFIG_SW_STD_GCOS:
           os = "Standard GCOS";
           break;
         case CONFIG_SW_EXT_GCOS:
@@ -2582,7 +2703,7 @@ int iom_show_config(FILE *st, UNIT *uptr, int val, void *desc)
           break;
       }
     char * blct = "<out of range>";
-    switch (config_sw_bootload_card_tape)
+    switch (p -> config_sw_bootload_card_tape)
       {
         case CONFIG_SW_BLCT_CARD:
           blct = "CARD";
@@ -2593,35 +2714,284 @@ int iom_show_config(FILE *st, UNIT *uptr, int val, void *desc)
       }
 
     out_msg("Allowed Operating System: %s\n", os);
-    out_msg("Mailbox Base Address:     %04o(8)\n", config_sw_channel_mbx_base_address);
-    out_msg("Interrupt Base Address:   %03o(8)\n", config_sw_interrupt_multiplex_base_address);
+    out_msg("IOM Base Address:         %03o(8)\n", p -> config_sw_iom_base_address);
+    out_msg("Multiplex Base Address:   %04o(8)\n", p -> config_sw_multiplex_base_address);
     out_msg("Bootload Card/Tape:       %s\n", blct);
-    out_msg("Bootload Tape Channel:    %02o(8)\n", config_sw_bootload_magtape_chan);
-    out_msg("Bootload Card Channel:    %02o(8)\n", config_sw_bootload_cardrdr_chan);
-    out_msg("Bootload Port:            %02o(8)\n", config_sw_bootload_port);
+    out_msg("Bootload Tape Channel:    %02o(8)\n", p -> config_sw_bootload_magtape_chan);
+    out_msg("Bootload Card Channel:    %02o(8)\n", p -> config_sw_bootload_cardrdr_chan);
+    out_msg("Bootload Port:            %02o(8)\n", p -> config_sw_bootload_port);
     out_msg("Port Address:            ");
     int i;
     for (i = 0; i < 8; i ++)
-      out_msg (" %1o", config_sw_port_addr [i]);
+      out_msg (" %03o", p -> config_sw_port_addr [i]);
     out_msg ("\n");
     out_msg("Port Interlace:          ");
     for (i = 0; i < 8; i ++)
-      out_msg (" %1o", config_sw_port_interlace [i]);
+      out_msg (" %3o", p -> config_sw_port_interlace [i]);
     out_msg ("\n");
     out_msg("Port Enable:             ");
     for (i = 0; i < 8; i ++)
-      out_msg (" %1o", config_sw_port_enable [i]);
+      out_msg (" %3o", p -> config_sw_port_enable [i]);
     out_msg ("\n");
     out_msg("Port Sysinit Enable:     ");
     for (i = 0; i < 8; i ++)
-      out_msg (" %1o", config_sw_port_sysinit_enable [i]);
+      out_msg (" %3o", p -> config_sw_port_sysinit_enable [i]);
     out_msg ("\n");
     out_msg("Port Halfsize:           ");
     for (i = 0; i < 8; i ++)
-      out_msg (" %1o", config_sw_port_halfsize [i]);
+      out_msg (" %3o", p -> config_sw_port_halfsize [i]);
     out_msg ("\n");
-
     
-    return 0;
+    return SCPE_OK;
 }
+
+//
+// set iom0 config=<blah> [;<blah>]
+//
+//    blah = iom_base=n
+//           multiplex_base=n
+//           os=gcos | gcosext | multics
+//           boot=card | tape
+//           tapechan=n
+//           cardchan=n
+//           scuport=n
+//           port=n   // set port number for below commands
+//             addr=n
+//             interlace=n
+//             enable=n
+//             initenable=n
+//             halfsize=n
+
+static t_stat iom_set_config (UNIT * uptr, int32 value, char * cptr, void * desc)
+  {
+    int unit_num = UNIT_NUM (uptr);
+    if (unit_num < 0 || unit_num >= iom_dev . numunits)
+      {
+        sim_debug (DBG_ERR, & iom_dev, "iom_show_config: Invalid unit number %d\n", unit_num);
+        out_msg ("error: invalid unit number %d\n", unit_num);
+        return SCPE_ARG;
+      }
+
+    //out_msg ("IOM unit number %d\n", unit_num);
+    struct unit_data * p = unit_data + unit_num;
+
+    //out_msg ("<%s>\n", cptr);
+    static uint port_num = 0;
+
+    char * copy = strdup (cptr);
+    char * start = copy;
+    char * statement_save = NULL;
+    for (;;) // process statements
+      {
+        char * statement;
+        statement = strtok_r (start, ";", & statement_save);
+        start = NULL;
+        if (! statement)
+          break;
+        //out_msg ("<%s>\n", statement);
+
+        // process statement
+
+        // extract name
+        char * name_start = statement;
+        char * name_save = NULL;
+        char * name;
+        name = strtok_r (name_start, "=", & name_save);
+        //out_msg ("[%s]\n", name);
+
+        // extract value
+        char * value;
+        value = strtok_r (NULL, "", & name_save);
+        //out_msg ("(%s)\n", value);
+
+        if (strcmp (name, "OS") == 0)
+          {
+            if (strcmp (value, "GCOS") == 0)
+              p -> config_sw_os = CONFIG_SW_STD_GCOS;
+            else if (strcmp (value, "GCOSEXT") == 0)
+              p -> config_sw_os = CONFIG_SW_EXT_GCOS;
+            else if (strcmp (value, "MULTICS") == 0)
+              p -> config_sw_os = CONFIG_SW_MULTICS;
+            else
+              {
+                sim_debug (DBG_ERR, & iom_dev, "iom_set_config: Invalid OS value <%s>\n", value);
+                out_msg ("error: invalid OS value <%s>\n", value);
+                break;
+              }
+          }
+        else if (strcmp (name, "BOOT") == 0)
+          {
+            if (strcmp (value, "CARD") == 0)
+              p -> config_sw_bootload_card_tape = CONFIG_SW_BLCT_CARD;
+            else if (strcmp (value, "TAPE") == 0)
+              p -> config_sw_bootload_card_tape = CONFIG_SW_BLCT_TAPE;
+            else
+              {
+                sim_debug (DBG_ERR, & iom_dev, "iom_set_config: Invalid boot value <%s>\n", value);
+                out_msg ("error: invalid boot value <%s>\n", value);
+                break;
+              }
+          }
+        else
+          {
+            // All of the remaining options expect a number
+            if (strlen (value) == 0)
+              {
+                sim_debug (DBG_ERR, & iom_dev, "iom_set_config: missing number\n");
+                out_msg ("error: missing number\n");
+                break;
+              }
+            char * endptr;
+            long int n = strtol (value, & endptr, 0);
+            if (* endptr)
+              {
+                sim_debug (DBG_ERR, & iom_dev, "iom_set_config: can't parse number <%s>\n", value);
+                out_msg ("error: can't parse number <%s>\n", value);
+                break;
+              } 
+
+            if (strcmp (name, "IOM_BASE") == 0)
+              {
+                // 12 bits
+                if (n < 0 || n > 07777)
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: IOM_BASE value out of range: %d\n", n);
+                    out_msg ("error: IOM_BASE value out of range: %d\n", n);
+                    break;
+                  } 
+                p -> config_sw_iom_base_address = n;
+              }
+            else if (strcmp (name, "MULTIPLEX_BASE") == 0)
+              {
+                // 9 bits
+                if (n < 0 || n > 0777)
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: MULTIPLEX_BASE value out of range: %d\n", n);
+                    out_msg ("error: MULTIPLEX_BASE value out of range: %d\n", n);
+                    break;
+                  } 
+                p -> config_sw_multiplex_base_address = n;
+              }
+            else if (strcmp (name, "TAPECHAN") == 0)
+              {
+                // 6 bits
+                if (n < 0 || n > 077)
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: TAPECHAN value out of range: %d\n", n);
+                    out_msg ("error: TAPECHAN value out of range: %d\n", n);
+                    break;
+                  } 
+                p -> config_sw_bootload_magtape_chan = n;
+              }
+            else if (strcmp (name, "CARDCHAN") == 0)
+              {
+                // 6 bits
+                if (n < 0 || n > 077)
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: CARDCHAN value out of range: %d\n", n);
+                    out_msg ("error: CARDCHAN value out of range: %d\n", n);
+                    break;
+                  } 
+                p -> config_sw_bootload_cardrdr_chan = n;
+              }
+            else if (strcmp (name, "SCUPORT") == 0)
+              {
+                // 3 bits
+                if (n < 0 || n > 07)
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: SCUPORT value out of range: %d\n", n);
+                    out_msg ("error: SCUPORT value out of range: %d\n", n);
+                    break;
+                  } 
+                p -> config_sw_bootload_port = n;
+              }
+            else if (strcmp (name, "PORT") == 0)
+              {
+                // 8 ports
+                if (n < 0 || n > 7)
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: PORT value out of range: %d\n", n);
+                    out_msg ("error: PORT value out of range: %d\n", n);
+                    break;
+                  } 
+                port_num = n;
+              }
+            else
+              {
+                // all of the remaining assume a valid value in port_num
+                if (port_num < 0 || port_num > 7)
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: cached PORT value out of range: %d\n", port_num);
+                    out_msg ("error: cached PORT value out of range: %d\n", port_num);
+                    break;
+                  } 
+
+                if (strcmp (name, "ADDR") == 0)
+                  {
+                    // 3 bits
+                    if (n < 0 || n > 07)
+                      {
+                        sim_debug (DBG_ERR, & iom_dev, "iom_set_config: PORT.ADDR value out of range: %d\n", n);
+                        out_msg ("error: PORT.ADDR value out of range: %d\n", n);
+                        break;
+                      } 
+                    p -> config_sw_port_addr [port_num] = n;
+                  }
+                else if (strcmp (name, "INTERLACE") == 0)
+                  {
+                    // 1 bits
+                    if (n < 0 || n > 01)
+                      {
+                        sim_debug (DBG_ERR, & iom_dev, "iom_set_config: PORT.INTERLACE value out of range: %d\n", n);
+                        out_msg ("error: PORT.INTERLACE value out of range: %d\n", n);
+                        break;
+                      } 
+                    p -> config_sw_port_interlace [port_num] = n;
+                  }
+                else if (strcmp (name, "ENABLE") == 0)
+                  {
+                    // 1 bits
+                    if (n < 0 || n > 01)
+                      {
+                        sim_debug (DBG_ERR, & iom_dev, "iom_set_config: PORT.ENABLE value out of range: %d\n", n);
+                        out_msg ("error: PORT.ENABLE value out of range: %d\n", n);
+                        break;
+                      } 
+                    p -> config_sw_port_enable [port_num] = n;
+                  }
+                else if (strcmp (name, "INITENABLE") == 0)
+                  {
+                    // 1 bits
+                    if (n < 0 || n > 01)
+                      {
+                        sim_debug (DBG_ERR, & iom_dev, "iom_set_config: PORT.INITENABLE value out of range: %d\n", n);
+                        out_msg ("error: PORT.INITENABLE value out of range: %d\n", n);
+                        break;
+                      } 
+                    p -> config_sw_port_sysinit_enable [port_num] = n;
+out_msg ("enable %d %d %d\n", unit_num, port_num, n);
+                  }
+                else if (strcmp (name, "HALFSIZE") == 0)
+                  {
+                    // 1 bits
+                    if (n < 0 || n > 01)
+                      {
+                        sim_debug (DBG_ERR, & iom_dev, "iom_set_config: PORT.HALFSIZE value out of range: %d\n", n);
+                        out_msg ("error: PORT.HALFSIZE value out of range: %d\n", n);
+                        break;
+                      } 
+                    p -> config_sw_port_halfsize [port_num] = n;
+                  }
+                else
+                  {
+                    sim_debug (DBG_ERR, & iom_dev, "iom_set_config: Invalid switch name <%s>\n", name);
+                    out_msg ("error: invalid switch name <%s>\n", name);
+                    break;
+                  }
+              } // port_num setting
+          } // number setting
+      } // process statements
+    free (copy);
+    return SCPE_OK;
+  }
 

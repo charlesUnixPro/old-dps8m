@@ -1248,7 +1248,7 @@ void out_msg(const char* format, ...)
     FILE *stream = (sim_log != NULL) ? sim_log : stdout;
     crnl_out(stream, format, ap);
     va_end(ap);
-    if (sim_deb != NULL) {
+    if (sim_deb != NULL && sim_deb != stream) {
         va_start(ap, format);
         crnl_out(sim_deb, format, ap);
         va_end(ap);

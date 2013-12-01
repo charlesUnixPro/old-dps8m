@@ -92,7 +92,7 @@
 t_stat mt_svc(UNIT *up);
 UNIT mt_unit [N_MT_UNITS] = {{
     // NOTE: other SIMH tape sims don't set UNIT_SEQ
-    // CAC: Looking at SIMH source, the pnly place UNIT_SEQ is used
+    // CAC: Looking at SIMH source, the only place UNIT_SEQ is used
     // by the "run" command's reset sequence; units that have UNIT_SEQ
     // set will be issued a rewind on reset.
     UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)
@@ -145,7 +145,9 @@ static struct s_tape_state {
     t_mtrlnt tbc; // Number of bytes read into buffer
     uint words_processed; // Number of Word36 processed from the buffer
     //bitstream_t *bitsp;
-} tape_state[ARRAY_SIZE(iom.channels)];
+// XXX iom should oughta be private
+//} tape_state[ARRAY_SIZE(iom.channels)];
+} tape_state[max_channels];
 
 void mt_init(void)
 {
@@ -184,7 +186,9 @@ int mt_iom_cmd(chan_devinfo* devinfop)
     
     // Major codes are 4 bits...
     
-    if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+    // iom should oughta be private
+    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+    if (chan < 0 || chan >= max_channels) {
         devinfop->have_status = 1;
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
@@ -193,7 +197,9 @@ int mt_iom_cmd(chan_devinfo* devinfop)
         return 1;
     }
     
-    DEVICE* devp = iom.channels[chan].dev;
+    // iom should oughta be private
+    //DEVICE* devp = iom.channels[chan].dev;
+    DEVICE* devp = & iom_dev;
     if (devp == NULL || devp->units == NULL) {
         devinfop->have_status = 1;
         *majorp = 05;
@@ -412,14 +418,18 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
 {
     // sim_debug (DBG_DEBUG, &iom_dev, "mt_iom_io: Chan 0%o\n", chan);
     
-    if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+    // iom should oughta be private
+    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+    if (chan < 0 || chan >= max_channels) {
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
         sim_debug (DBG_ERR, &iom_dev, "mt_iom_io: Bad channel %d\n", chan);
         return 1;
     }
     
-    DEVICE* devp = iom.channels[chan].dev;
+    // iom should oughta be private
+    //DEVICE* devp = iom.channels[chan].dev;
+    DEVICE* devp = & iom_dev;
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;

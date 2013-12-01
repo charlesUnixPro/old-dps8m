@@ -2207,23 +2207,6 @@ typedef struct {
     lpw_t lpw;
 } channel_t;
 
-typedef struct {
-    uint iom_num;
-    int ports[8]; // CPU/IOM connectivity; designated a..h; negative to disable
-    int scu_port; // which port on the SCU(s) are we connected to?
-    struct {
-        enum dev_type type;
-        DEVICE* dev; // attached device; points into sim_devices[]
-        // The channel "boards" do *not* point into the UNIT array of the
-        // IOM entry within sim_devices[]. These channel "boards" are used
-        // only for simulation of async operation (that is as arguments for
-        // sim_activate()). Since they carry no state information, they
-        // are dynamically allocated by the IOM as needed.
-        UNIT* board; // represents the channel; See comment just above
-        channel_t channel_state;
-    } channels[max_channels];
-} iom_t;
-
 // System-wide info and options not tied to a specific CPU, IOM, or SCU
 typedef struct {
     int clock_speed;
@@ -2278,7 +2261,6 @@ extern ctl_unit_data_t cu;
 extern stats_t sys_stats;
 
 extern scu_t scu; // only one for now
-extern iom_t iom; // only one for now
 
 extern int is_eis[];
 
@@ -2961,8 +2943,6 @@ t_stat iom_svc(UNIT* up);
 t_stat iom_reset(DEVICE *dptr);
 t_stat iom_boot(int32 unit_num, DEVICE *dptr);
 t_stat channel_svc(UNIT *up);
-int iom_show_mbx(FILE *st, UNIT *uptr, int val, void *desc);
-int iom_show_config(FILE *st, UNIT *uptr, int val, void *desc);
 
 /* dps8_mt.c */
 

@@ -207,16 +207,21 @@ int opcon_autoinput_show(FILE *st, UNIT *uptr, int val, void *desc)
 static int con_check_args(const char* moi, int chan, int dev_code, int* majorp, int* subp, DEVICE **devpp, con_state_t **statepp)
 {
     
-    if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+// XXX iom_t should oughtta be private
+    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+    if (chan < 0 || chan >= max_channels) {
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 1;
         sim_debug (DBG_ERR, & opcon_dev, "%s: Bad channel %d\n", moi, chan);
         return 1;
     }
     
-    *devpp = iom.channels[chan].dev;
-    DEVICE *devp = *devpp;
-    if (devpp == NULL) {
+// XXX iom_t should oughtta be private
+    //*devpp = iom.channels[chan].dev;
+    //DEVICE *devp = *devpp;
+    //if (devpp == NULL) {
+    DEVICE* devp = & iom_dev;
+    if (devp == NULL) {
         *majorp = 05;
         *subp = 1;
         sim_debug (DBG_ERR, & opcon_dev, "con_check_args: Internal error, no device for channel 0%o\n", chan);
@@ -498,11 +503,15 @@ int con_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
 
 static void check_keyboard(int chan)
 {
-    if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+// XXX iom_t should oughtta be private
+    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
+    if (chan < 0 || chan >= max_channels) {
         sim_debug (DBG_WARN, & opcon_dev, "check_keyboard: Bad channel\n");
         return;
     }
-    DEVICE* devp = iom.channels[chan].dev;
+// XXX iom_t should oughtta be private
+    //DEVICE* devp = iom.channels[chan].dev;
+    DEVICE* devp = & iom_dev;
     if (devp == NULL) {
         sim_debug (DBG_WARN, & opcon_dev, "check_keyboard: No device\n");
         return;
