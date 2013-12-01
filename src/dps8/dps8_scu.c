@@ -6,6 +6,10 @@
 //  Original portions Copyright (c) 2013 Harry Reed. All rights reserved.
 //
 //  Derived (& originally stolen) from .....
+
+// XXX This is used wherever a single unit only is assumed
+#define ASSUME0 0
+
 /*
  scu.c -- System Controller
  
@@ -909,7 +913,7 @@ int scu_cioc(t_uint64 addr)
     // we only have one IOM, so signal it
     // todo: sanity check port connections
     if (sys_opts.iom_times.connect < 0)
-        iom_interrupt();
+        iom_interrupt(ASSUME0);
     else {
         sim_debug (DBG_INFO, &scu_dev, "scu_cioc: Queuing an IOM in %d cycles (for the connect channel)\n", sys_opts.iom_times.connect);
         if (sim_activate(&iom_dev.units[0], sys_opts.iom_times.connect) != SCPE_OK) {

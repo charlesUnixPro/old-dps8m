@@ -9,6 +9,8 @@
 
 #include "dps8.h"
 
+// XXX Use this when we assume there is only a single unit
+#define ASSUME0 0
 
 /*
  * simh interface
@@ -425,7 +427,8 @@ t_stat cpu_reset_mm (DEVICE *dptr)
 t_stat cpu_boot (int32 unit_num, DEVICE *dptr)
 {
     // The boot button on the cpu is conneted to the boot button on the IOM
-    return iom_boot (unit_num, dptr);
+    // XXX is this true? Which IOM is it connected to?
+    return iom_boot (ASSUME0, & iom_dev);
 }
 
 t_stat cpu_reset (DEVICE *dptr)

@@ -134,7 +134,8 @@ static DEVICE* find_opcon()
         devinfop = malloc(sizeof(*devinfop));
         if (devinfop == NULL)
             return NULL;
-        devinfop->chan = -1;
+        devinfop->iom_unit_num = ASSUME0;
+        devinfop->chan = -1; // XXX Magic value marks this devinfo as the OPCON
         devinfop->statep = NULL;
         devp->ctxt = devinfop;
     }
@@ -221,7 +222,7 @@ static int con_check_args(const char* moi, int chan, int dev_code, int* majorp, 
     
 // XXX iom_t should oughtta be private
     //*devpp = iom.channels[chan].dev;
-    *devpp = get_iom_channel_dev (ASSUME0, chan);
+    *devpp = get_iom_channel_dev (ASSUME0, chan, NULL);
     DEVICE *devp = *devpp;
     if (devpp == NULL) {
         *majorp = 05;
@@ -513,7 +514,7 @@ static void check_keyboard(int chan)
     }
 // XXX iom_t should oughtta be private
     //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan, NULL);
     if (devp == NULL) {
         sim_debug (DBG_WARN, & opcon_dev, "check_keyboard: No device\n");
         return;

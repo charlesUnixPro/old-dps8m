@@ -255,7 +255,13 @@ sysinfo_t sys_opts =
       0  /* iom_times.chan_activate */
     },
     {
-      0, /* mt_times.read */
+// XXX This suddenly started working when I reworked the iom code for multiple units.
+// XXX No idea why. However, setting it to zero queues the boot tape read instead of
+// XXX performing it immediately. This makes the boot code fail because iom_boot 
+// XXX returns before the read is dequeued, causing the CPU to start before the
+// XXX tape is read into memory. Need to fix boot_iom to wait....
+//
+      -1, /* mt_times.read */
       0  /* mt_times.xfer */
     },
     0, /* warn_uninit */

@@ -90,13 +90,16 @@
 
 #include "sim_tape.h"
 
+static t_stat mt_rewind (UNIT * uptr, int32 value, char * cptr, void * desc);
+
 #define N_MT_UNITS 1
-t_stat mt_svc(UNIT *up);
+static t_stat mt_svc(UNIT *up);
 UNIT mt_unit [N_MT_UNITS] = {{
     // NOTE: other SIMH tape sims don't set UNIT_SEQ
     // CAC: Looking at SIMH source, the only place UNIT_SEQ is used
     // by the "run" command's reset sequence; units that have UNIT_SEQ
     // set will be issued a rewind on reset.
+    // XXX Should we rewind on reset? What is the actual behavior?
     UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)
 }};
 
@@ -116,8 +119,19 @@ static MTAB mt_mod [] =
   {
     { UNIT_WATCH, 1, "WATCH", "WATCH", NULL, NULL },
     { UNIT_WATCH, 0, "NOWATCH", "NOWATCH", NULL, NULL },
+    {
+       MTAB_XTD | MTAB_VUN | MTAB_NC, /* mask */
+      0,            /* match */
+      NULL,         /* print string */
+      "REWIND",     /* match string */
+      mt_rewind,    /* validation routine */
+      NULL,         /* display routine */
+      NULL          /* value descriptor */
+    },
     { 0 }
   };
+
+static t_stat mt_reset (DEVICE * dptr);
 
 DEVICE tape_dev = {
     "TAPE",       /* name */
@@ -150,14 +164,13 @@ static const size_t bufsz = 4096 * 1024;
 static struct s_tape_state {
     // BUG: this should hang off of UNIT structure (not that the UNIT
     // structure contains a pointer...)
+    // XXX: CAC this should be indexed by unit_num, not chan_num
     // BUG: An array index by channel doesn't allow multiple tapes per channel
     enum { no_mode, read_mode, write_mode } io_mode;
     uint8 *bufp;
     t_mtrlnt tbc; // Number of bytes read into buffer
     uint words_processed; // Number of Word36 processed from the buffer
     //bitstream_t *bitsp;
-// XXX iom should oughta be private
-//} tape_state[ARRAY_SIZE(iom.channels)];
 } tape_state[max_channels];
 
 void mt_init(void)
@@ -165,7 +178,7 @@ void mt_init(void)
     memset(tape_state, 0, sizeof(tape_state));
 }
 
-t_stat mt_reset (DEVICE * dptr)
+static t_stat mt_reset (DEVICE * dptr)
   {
     for (int i = 0; i < dptr -> numunits; i ++)
       {
@@ -182,6 +195,7 @@ t_stat mt_reset (DEVICE * dptr)
 
 int mt_iom_cmd(chan_devinfo* devinfop)
 {
+    int iom_unit_num = devinfop -> iom_unit_num;
     int chan = devinfop->chan;
     int dev_cmd = devinfop->dev_cmd;
     int dev_code = devinfop->dev_code;
@@ -189,16 +203,14 @@ int mt_iom_cmd(chan_devinfo* devinfop)
     int* subp = &devinfop->substatus;
     
 
-    sim_debug (DBG_DEBUG, &iom_dev, "mt_iom_cmd: Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
-            chan, dev_cmd, dev_code);
+    sim_debug (DBG_DEBUG, &iom_dev, "mt_iom_cmd: IOM %c, Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
+            'A' + iom_unit_num, chan, dev_cmd, dev_code);
     
     devinfop->is_read = 1;
     devinfop->time = -1;
     
     // Major codes are 4 bits...
     
-    // iom should oughta be private
-    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
     if (chan < 0 || chan >= max_channels) {
         devinfop->have_status = 1;
         *majorp = 05;   // Real HW could not be on bad channel
@@ -208,17 +220,19 @@ int mt_iom_cmd(chan_devinfo* devinfop)
         return 1;
     }
     
-    // iom should oughta be private
-    //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
+    int unit_dev_num;
+    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, & unit_dev_num);
     if (devp == NULL || devp->units == NULL) {
         devinfop->have_status = 1;
         *majorp = 05;
         *subp = 2;
-        sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Internal error, no device and/or unit for channel 0%o\n", chan);
+        sim_debug (DBG_ERR, &iom_dev, "mt_iom_cmd: Internal error, no device and/or unit for IOM %c channel 0%o\n", 'A' + iom_unit_num, chan);
         cancel_run(STOP_BUG);
         return 1;
     }
+// XXX dev_code != unit_num; this test is incorrect
+// XXX it should compare dev_code to the units own idea of it's dev_code
+#if 0
     if (dev_code < 0 || dev_code >= devp->numunits) {
         devinfop->have_status = 1;
         *majorp = 05;   // Command Reject
@@ -227,9 +241,10 @@ int mt_iom_cmd(chan_devinfo* devinfop)
         cancel_run(STOP_BUG);
         return 1;
     }
-    UNIT* unitp = &devp->units[dev_code];
+#endif
+
+    UNIT* unitp = &devp->units[unit_dev_num];
     
-    // BUG: Assumes one drive per channel
     struct s_tape_state *tape_statep = &tape_state[chan];
     
     switch(dev_cmd) {
@@ -266,7 +281,12 @@ int mt_iom_cmd(chan_devinfo* devinfop)
             if (! (unitp->flags & UNIT_ATT))
                 ret = MTSE_UNATT;
             else
+              {
                 ret = sim_tape_rdrecf(unitp, tape_statep->bufp, &tbc, bufsz);
+                // XXX put unit number in here...
+                if (unitp->flags & UNIT_WATCH)
+                  out_msg ("Tape reads a record\n");
+              }
             if (ret != 0) {
                 if (ret == MTSE_TMK || ret == MTSE_EOM) {
                     sim_debug (DBG_NOTIFY, &iom_dev, "mt_iom_cmd: EOF: %s\n", simh_tape_msg(ret));
@@ -287,9 +307,6 @@ int mt_iom_cmd(chan_devinfo* devinfop)
                     return 1;
                 }
             }
-            // XXX put unit number in here...
-            if (unitp->flags & UNIT_WATCH)
-              out_msg ("Tape reads a record\n");
             tape_statep -> tbc = tbc;
             tape_statep -> words_processed = 0;
 
@@ -432,12 +449,10 @@ static int extractWord36FromBuffer (uint8 * bufp, t_mtrlnt tbc, uint * words_pro
     return 0;
   }
 
-int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
+int mt_iom_io(int iom_unit_num, int chan, t_uint64 *wordp, int* majorp, int* subp)
 {
     // sim_debug (DBG_DEBUG, &iom_dev, "mt_iom_io: Chan 0%o\n", chan);
     
-    // iom should oughta be private
-    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
     if (chan < 0 || chan >= max_channels) {
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
@@ -445,16 +460,15 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
         return 1;
     }
     
-    // iom should oughta be private
-    //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
+    int dev_unit_num;
+    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, & dev_unit_num);
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;
         sim_debug (DBG_ERR, &iom_dev, "mt_iom_io: Internal error, no device and/or unit for channel 0%o\n", chan);
         return 1;
     }
-    UNIT* unitp = devp->units;
+    UNIT * unitp = & devp -> units [dev_unit_num];
     // BUG: no dev_code
     
     struct s_tape_state *tape_statep = &tape_state[chan];
@@ -509,7 +523,7 @@ int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     return 1;
 }
 
-t_stat mt_svc(UNIT *up)
+static t_stat mt_svc(UNIT *up)
 {
     sim_debug (DBG_DEBUG, &iom_dev, "mt_svc: Calling channel service.\n");
     return channel_svc(up);
@@ -544,3 +558,9 @@ static const char *simh_tape_msg(int code)
     else
         return "Unknown SIMH tape error";
 }
+
+static t_stat mt_rewind (UNIT * uptr, int32 value, char * cptr, void * desc)
+  {
+    return sim_tape_rewind (uptr);
+  }
+

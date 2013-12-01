@@ -96,14 +96,15 @@ void disk_init(void)
 
 int disk_iom_cmd(chan_devinfo* devinfop)
 {
+    int iom_unit_num = devinfop -> iom_unit_num;
     int chan = devinfop->chan;
     int dev_cmd = devinfop->dev_cmd;
     int dev_code = devinfop->dev_code;
     int* majorp = &devinfop->major;
     int* subp = &devinfop->substatus;
     
-    sim_debug(DBG_DEBUG, & disk_dev, "disk_iom_cmd: Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
-            chan, dev_cmd, dev_code);
+    sim_debug(DBG_DEBUG, & disk_dev, "disk_iom_cmd: IOM %c, Chan 0%o, dev-cmd 0%o, dev-code 0%o\n",
+            'A' + iom_unit_num, chan, dev_cmd, dev_code);
     
     devinfop->is_read = 1;  // FIXME
     devinfop->time = -1;
@@ -123,7 +124,8 @@ int disk_iom_cmd(chan_devinfo* devinfop)
     
 // XXX iom_t should oughtta be private
     //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
+    int dev_unit_num;
+    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, & dev_unit_num);
     if (devp == NULL || devp->units == NULL) {
         devinfop->have_status = 1;
         *majorp = 05;
@@ -132,6 +134,8 @@ int disk_iom_cmd(chan_devinfo* devinfop)
         cancel_run(STOP_BUG);
         return 1;
     }
+// XXX bogus check, dev_code is not a unit number
+#if 0
     if (dev_code < 0 || dev_code >= devp->numunits) {
         devinfop->have_status = 1;
         *majorp = 05;   // Command Reject
@@ -140,8 +144,10 @@ int disk_iom_cmd(chan_devinfo* devinfop)
         cancel_run(STOP_BUG);
         return 1;
     }
+#endif
+
 #ifndef QUIET_UNUSED
-    UNIT* unitp = &devp->units[dev_code];
+    UNIT* unitp = &devp->units[dev_unit_num];
 #endif
     
     // TODO: handle cmd etc for given unit
@@ -192,8 +198,6 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
 {
     // sim_debug(DBG_DEBUG, & disk_dev, "disk_iom_io: Chan 0%o\n", chan);
     
-// XXX iom_t should oughtta be private
-    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
     if (chan < 0 || chan >= max_channels) {
         *majorp = 05;   // Real HW could not be on bad channel
         *subp = 2;
@@ -201,9 +205,8 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
         return 1;
     }
     
-// XXX iom_t should oughtta be private
-    //DEVICE* devp = iom.channels[chan].dev;
-    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan);
+    int dev_unit_num;
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan, & dev_unit_num);
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;
@@ -211,7 +214,7 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
         return 1;
     }
 #ifndef QUIET_UNUSED
-    UNIT* unitp = devp->units;
+    UNIT* unitp = devp->units[dev_unit_num];
 #endif
     // BUG: no dev_code
     

@@ -612,7 +612,6 @@ extern UNIT cpu_unit [];
 extern REG iom_reg[];
 extern REG mpc_reg[];
 extern FILE *sim_deb;
-//extern void sim_debug (uint32 dbits, DEVICE* dptr, const char* fmt, ...);
 
 
 // ******* h6180 stuff *******
@@ -2163,9 +2162,18 @@ typedef enum {
 
 // Used to communicate between the IOM and devices
 typedef struct {
+    int iom_unit_num;
     int chan;
     void* statep; // For use by device specific code
     int dev_cmd; // 6 bits
+    // XXX Caution; this is the unit number from the IOM, it is NOT the
+    // same as unit number. E.g.
+    //    dev_code       simh
+    //      0            cardreader[0]
+    //      1            tape[0]
+    //      2            tape[1]
+    //      3            disk[0]
+
     int dev_code; // 6 bits
     int chan_data; // 6 bits; often some sort of count
     flag_t have_status; // set to true by the device when operation is complete
@@ -2920,10 +2928,10 @@ t_stat doXED(word36 *Ypair);
 
 /* dps8_iom.c */
 
-DEVICE * get_iom_channel_dev (uint iom_unit_num, int chan);
+DEVICE * get_iom_channel_dev (uint iom_unit_num, int chan, int * unit_num);
 void iom_init(void);
 t_stat iom_boot(int32 unit_num, DEVICE *dptr);
-void iom_interrupt(void);
+void iom_interrupt(int iom_unit_num);
 t_stat iom_svc(UNIT* up);
 t_stat iom_reset(DEVICE *dptr);
 t_stat iom_boot(int32 unit_num, DEVICE *dptr);
@@ -2932,9 +2940,8 @@ t_stat channel_svc(UNIT *up);
 /* dps8_mt.c */
 
 void mt_init(void);
-t_stat mt_reset (DEVICE * dptr);
 int mt_iom_cmd(chan_devinfo* devinfop);
-int mt_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp);
+int mt_iom_io(int iom_unit_num, int chan, t_uint64 *wordp, int* majorp, int* subp);
 
 /* dps8_scu.c */
 
