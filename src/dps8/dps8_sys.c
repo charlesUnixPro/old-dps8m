@@ -24,11 +24,20 @@ word36 *M = NULL;                                          /*!< memory */
 char sim_name[] = "dps-8/m";
 int32 sim_emax = 4; ///< some EIS can take up to 4-words
 static void dps8_init(void);
-void (*sim_vm_init) (void) = &dps8_init;    //CustomCmds;
+void (*sim_vm_init) (void) = & dps8_init;    //CustomCmds;
 
+static t_stat sys_cable (int32 arg, char * buf);
 
+CTAB dps8_cmds[] =
+{
+    {"DPSINIT", dpsCmd_Init,        0, "dpsinit dps8/m initialize stuff ...\n"},
+    {"DPSDUMP", dpsCmd_Dump,        0, "dpsdump dps8/m dump stuff ...\n"},
+    {"SEGMENT", dpsCmd_Segment,     0, "segment dps8/m segment stuff ...\n"},
+    {"SEGMENTS", dpsCmd_Segments,   0, "segments dps8/m segments stuff ...\n"},
+    { "CABLE", sys_cable, 0, "String a cable" },
 
-
+    { NULL, NULL, 0, NULL}
+};
 
 /*!
  \brief special dps8 VM commands ....
@@ -57,7 +66,85 @@ static void dps8_init(void)    //CustomCmds(void)
     console_init ();
     disk_init ();
     mt_init ();
+    //mpc_init ();
 }
+
+static int getval (char * * save, char * text)
+  {
+    char * value;
+    char * endptr;
+    value = strtok_r (NULL, ",", save);
+    if (! value)
+      {
+        sim_debug (DBG_ERR, & iom_dev, "sys_cable: can't parse %s\n", text);
+        out_msg ("error: sys_cable: can't parse %s\n", text);
+        return -1;
+      }
+    long l = strtol (value, & endptr, 0);
+    if (* endptr || l < 0 || l > INT_MAX)
+      {
+        sim_debug (DBG_ERR, & iom_dev, "sys_cable: can't parse %s <%s>\n", text, value);
+        out_msg ("error: sys_cable: can't parse %s <%s>\n", text, value);
+        return -1;
+      }
+    return (int) l;
+  }
+
+// Connect dev to iom
+//   cable <dev_name>,<dev_unit_num>,<iom_unit_num>,<chan_num>,<dev_code>
+//
+
+static t_stat sys_cable (int32 arg, char * buf)
+  {
+// XXX Minor bug; this code doesn't check for trailing garbage
+// XXX iom_dev in the sim_debugs really should be sys_dev, which we haven't created yet
+
+    char * copy = strdup (buf);
+    t_stat rc = SCPE_ARG;
+
+    // process statement
+
+    // extract name
+    char * name_save = NULL;
+    char * name;
+    name = strtok_r (copy, ",", & name_save);
+    if (! name)
+      {
+        sim_debug (DBG_ERR, & iom_dev, "sys_cable: can't parse name\n");
+        out_msg ("error: sys_cable: can't parse name\n");
+        goto exit;
+      }
+
+
+    int n1 = getval (& name_save, "parameter 1");
+    if (n1 < 0)
+      goto exit;
+    int n2 = getval (& name_save, "parameter 2");
+    if (n2 < 0)
+      goto exit;
+    int n3 = getval (& name_save, "parameter 3");
+    if (n3 < 0)
+      goto exit;
+    int n4 = getval (& name_save, "parameter 4");
+    if (n4 < 0)
+      goto exit;
+
+
+    if (strcasecmp (name, "TAPE") == 0)
+      {
+        rc = cable_mt (n1, n2, n3, n4);
+      }
+    else
+      {
+        sim_debug (DBG_ERR, & iom_dev, "sys_cable: Invalid switch name <%s>\n", name);
+        out_msg ("error: sys_cable: invalid switch name <%s>\n", name);
+        goto exit;
+      }
+
+exit:
+    free (copy);
+    return rc;
+  }
 
 static struct PRtab {
     char *alias;    ///< pr alias
@@ -275,37 +362,6 @@ sysinfo_t sys_opts =
 // *** Other devices
 
 
-/* Don't really want the MPC units; we will abstract them away and
- * pretend that the IOMs are connected to devices that don't need
- * any stinking MCP^h^h^hMPCs.
- */
-// #define N_MPC_UNITS 1
-// UNIT mpc_unit [N_MPC_UNITS] = {{ UDATA(NULL, 0, 0) }};
-// DEVICE mpc_dev = {
-//     "MPC",      /* name */
-//     mpc_unit,   /* units */
-//     mpc_reg,    /* registers */
-//     NULL,       /* modifiers */
-//     N_MPC_UNITS,          /* #units */
-//     10,         /* address radix */
-//     8,          /* address width */
-//     1,          /* address increment */
-//     8,          /* data radix */
-//     8,          /* data width */
-//     NULL,       /* examine routine */
-//     NULL,       /* deposit routine */
-//     NULL, /* reset routine */
-//     NULL,  /* boot routine */
-//     NULL,       /* attach routine */
-//     NULL,       /* detach routine */
-//     NULL,       /* context */
-//     DEV_DEBUG,  /* flags */
-//     0,          /* debug control flags */
-//     0,          /* debug flag names */
-//     NULL,       /* memory size change */
-//     NULL        /* logical name */
-// };
-
 //=============================================================================
 
 
@@ -318,7 +374,7 @@ DEVICE * sim_devices [] =
     & tape_dev,
     & scu_dev,
     & clk_dev,
-//    & mpc_dev, // Not needed
+    // & mpc_dev,
 //    & opcon_dev, // Not hooked up yet
 //    & disk_dev, // Not hooked up yet
 

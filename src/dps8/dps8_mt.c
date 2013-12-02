@@ -91,17 +91,36 @@
 #include "sim_tape.h"
 
 static t_stat mt_rewind (UNIT * uptr, int32 value, char * cptr, void * desc);
+static t_stat mt_show_nunits (FILE *st, UNIT *uptr, int val, void *desc);
+static t_stat mt_set_nunits (UNIT * uptr, int32 value, char * cptr, void * desc);
 
-#define N_MT_UNITS 1
+// Note IOM stores data in units in u3 and u4 
+#define N_MT_UNITS_MAX 16
+#define N_MT_UNITS 1 // default
 static t_stat mt_svc(UNIT *up);
-UNIT mt_unit [N_MT_UNITS] = {{
+UNIT mt_unit [N_MT_UNITS_MAX] = {
     // NOTE: other SIMH tape sims don't set UNIT_SEQ
     // CAC: Looking at SIMH source, the only place UNIT_SEQ is used
     // by the "run" command's reset sequence; units that have UNIT_SEQ
     // set will be issued a rewind on reset.
     // XXX Should we rewind on reset? What is the actual behavior?
-    UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)
-}};
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)},
+    {UDATA (&mt_svc, UNIT_ATTABLE | UNIT_SEQ | UNIT_ROABLE | UNIT_DISABLE | UNIT_IDLE, 0)}
+};
 
 static DEBTAB mt_dt [] =
   {
@@ -127,6 +146,15 @@ static MTAB mt_mod [] =
       mt_rewind,    /* validation routine */
       NULL,         /* display routine */
       NULL          /* value descriptor */
+    },
+    {
+      MTAB_XTD | MTAB_VDV | MTAB_NMO | MTAB_VALR, /* mask */
+      0,            /* match */
+      "NUNITS",     /* print string */
+      "NUNITS",         /* match string */
+      mt_set_nunits, /* validation routine */
+      mt_show_nunits, /* display routine */
+      "Number of TAPE units in the system" /* value descriptor */
     },
     { 0 }
   };
@@ -166,6 +194,10 @@ static struct s_tape_state {
     // structure contains a pointer...)
     // XXX: CAC this should be indexed by unit_num, not chan_num
     // BUG: An array index by channel doesn't allow multiple tapes per channel
+    // XXX: CAC How is multiple tapes per channel done? some black magic
+    // in the MPC? the dev_code in the idcw indicates which unit on the
+    // channel
+
     enum { no_mode, read_mode, write_mode } io_mode;
     uint8 *bufp;
     t_mtrlnt tbc; // Number of bytes read into buffer
@@ -173,10 +205,19 @@ static struct s_tape_state {
     //bitstream_t *bitsp;
 } tape_state[max_channels];
 
+static struct
+  {
+    int iom_unit_num;
+    int chan_num;
+    int dev_code;
+  } cables_from_ioms [N_MT_UNITS_MAX];
+
 void mt_init(void)
-{
+  {
     memset(tape_state, 0, sizeof(tape_state));
-}
+    for (int i = 0; i < N_MT_UNITS_MAX; i ++)
+      cables_from_ioms [i] . iom_unit_num = -1;
+  }
 
 static t_stat mt_reset (DEVICE * dptr)
   {
@@ -185,6 +226,46 @@ static t_stat mt_reset (DEVICE * dptr)
         sim_tape_reset (& mt_unit [i]);
         sim_cancel (& mt_unit [i]);
       }
+    return SCPE_OK;
+  }
+
+int get_mt_numunits (void)
+  {
+    return tape_dev . numunits;
+  }
+
+//
+// String a cable from a tape drive to an IOM
+//
+// This end: mt_unit_num
+// That end: iom_unit_num, chan_num, dev_code
+// 
+
+t_stat cable_mt (int mt_unit_num, int iom_unit_num, int chan_num, int dev_code)
+  {
+    if (mt_unit_num < 0 || mt_unit_num >= tape_dev . numunits)
+      {
+        sim_debug (DBG_ERR, & iom_dev, "cable_mt: mt_unit_num out of range <%d>\n", mt_unit_num);
+        out_msg ("cable_mt: mt_unit_num out of range <%d>\n", mt_unit_num);
+        return SCPE_ARG;
+      }
+
+    // Plug the other end of the cable in
+    t_stat rc = cable_to_iom (iom_unit_num, chan_num, dev_code, DEVT_TAPE, mt_unit_num);
+    if (rc)
+      return rc;
+
+    if (cables_from_ioms [mt_unit_num] . iom_unit_num != -1)
+      {
+        sim_debug (DBG_ERR, & tape_dev, "cable_mt: socket in use\n");
+        out_msg ("cable_mt: socket in use\n");
+        return SCPE_ARG;
+      }
+
+    cables_from_ioms [mt_unit_num] . iom_unit_num = iom_unit_num;
+    cables_from_ioms [mt_unit_num] . chan_num = chan_num;
+    cables_from_ioms [mt_unit_num] . dev_code = dev_code;
+
     return SCPE_OK;
   }
 
@@ -221,7 +302,7 @@ int mt_iom_cmd(chan_devinfo* devinfop)
     }
     
     int unit_dev_num;
-    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, & unit_dev_num);
+    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, dev_code, & unit_dev_num);
     if (devp == NULL || devp->units == NULL) {
         devinfop->have_status = 1;
         *majorp = 05;
@@ -461,7 +542,7 @@ int mt_iom_io(int iom_unit_num, int chan, t_uint64 *wordp, int* majorp, int* sub
     }
     
     int dev_unit_num;
-    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, & dev_unit_num);
+    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, ASSUME0, & dev_unit_num);
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;
@@ -562,5 +643,20 @@ static const char *simh_tape_msg(int code)
 static t_stat mt_rewind (UNIT * uptr, int32 value, char * cptr, void * desc)
   {
     return sim_tape_rewind (uptr);
+  }
+
+static t_stat mt_show_nunits (FILE *st, UNIT *uptr, int val, void *desc)
+  {
+    out_msg("Number of TAPE units in system is %d\n", tape_dev . numunits);
+    return SCPE_OK;
+  }
+
+static t_stat mt_set_nunits (UNIT * uptr, int32 value, char * cptr, void * desc)
+  {
+    int n = atoi (cptr);
+    if (n < 1 || n > N_MT_UNITS_MAX)
+      return SCPE_ARG;
+    tape_dev . numunits = n;
+    return SCPE_OK;
   }
 

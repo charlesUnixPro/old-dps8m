@@ -111,8 +111,6 @@ int disk_iom_cmd(chan_devinfo* devinfop)
     
     // Major codes are 4 bits...
     
-// XXX iom_t should oughtta be private
-    //if (chan < 0 || chan >= ARRAY_SIZE(iom.channels)) {
     if (chan < 0 || chan >= max_channels) {
         devinfop->have_status = 1;
         *majorp = 05;   // Real HW could not be on bad channel
@@ -122,10 +120,8 @@ int disk_iom_cmd(chan_devinfo* devinfop)
         return 1;
     }
     
-// XXX iom_t should oughtta be private
-    //DEVICE* devp = iom.channels[chan].dev;
     int dev_unit_num;
-    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, & dev_unit_num);
+    DEVICE* devp = get_iom_channel_dev (iom_unit_num, chan, ASSUME0, & dev_unit_num);
     if (devp == NULL || devp->units == NULL) {
         devinfop->have_status = 1;
         *majorp = 05;
@@ -206,7 +202,7 @@ int disk_iom_io(int chan, t_uint64 *wordp, int* majorp, int* subp)
     }
     
     int dev_unit_num;
-    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan, & dev_unit_num);
+    DEVICE* devp = get_iom_channel_dev (ASSUME0, chan, ASSUME0, & dev_unit_num);
     if (devp == NULL || devp->units == NULL) {
         *majorp = 05;
         *subp = 2;

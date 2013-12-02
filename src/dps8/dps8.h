@@ -610,7 +610,6 @@ extern REG cpu_reg[];
 extern UNIT mt_unit [];
 extern UNIT cpu_unit [];
 extern REG iom_reg[];
-extern REG mpc_reg[];
 extern FILE *sim_deb;
 
 
@@ -1794,8 +1793,8 @@ enum { n_segments = 1 << seg_bits}; // why does c89 treat enums as more constant
 // Devices connected to a SCU
 enum active_dev { ADEV_NONE, ADEV_CPU, ADEV_IOM };
 
-// Devices connected to an IOM (I/O multiplexer)
-enum dev_type { DEVT_NONE, DEVT_TAPE, DEVT_CON, DEVT_DISK };
+// Devices connected to an IOM (I/O multiplexer) (possibly indirectly)
+enum dev_type { DEVT_NONE = 0, DEVT_TAPE, DEVT_CON, DEVT_DISK, DEVT_MPC };
 
 void out_msg(const char* format, ...);
 
@@ -2870,12 +2869,14 @@ void console_init(void);
 
 /* dps8_cpu.c */
 
-extern CTAB dps8_cmds [];
-
 void init_opcodes (void);
 void encode_instr(const instr_t *ip, t_uint64 *wordp);
 DCDstruct *decodeInstruction(word36 inst, DCDstruct *dst);     // decode instruction into structure
 DCDstruct *fetchInstruction(word18 addr, DCDstruct *dst);      // fetch (+ decode) instrcution at address
+t_stat dpsCmd_Dump (int32 arg, char *buf);
+t_stat dpsCmd_Init (int32 arg, char *buf);
+t_stat dpsCmd_Segment (int32 arg, char *buf);
+t_stat dpsCmd_Segments (int32 arg, char *buf);
 
 // Memory ops that use the appending unit (as necessary) ...
 t_stat Read (DCDstruct *i, word24 addr, word36 *dat, enum eMemoryAccessType acctyp, int32 Tag);
@@ -2928,7 +2929,7 @@ t_stat doXED(word36 *Ypair);
 
 /* dps8_iom.c */
 
-DEVICE * get_iom_channel_dev (uint iom_unit_num, int chan, int * unit_num);
+DEVICE * get_iom_channel_dev (uint iom_unit_num, int chan, int dev_code, int * unit_num);
 void iom_init(void);
 t_stat iom_boot(int32 unit_num, DEVICE *dptr);
 void iom_interrupt(int iom_unit_num);
@@ -2936,12 +2937,25 @@ t_stat iom_svc(UNIT* up);
 t_stat iom_reset(DEVICE *dptr);
 t_stat iom_boot(int32 unit_num, DEVICE *dptr);
 t_stat channel_svc(UNIT *up);
+int get_iom_numunits (void);
+t_stat cable_to_iom (int iom_unit_num, int chan_num, int dev_code, enum dev_type dev_type, int dev_unit_num);
+
+/* dps8_mpc.c */
+
+#if 0
+void mpc_init (void);
+extern DEVICE mpc_dev;
+t_stat cable_to_mpc (int mpc_unit_num, int dev_code, enum dev_type  mpc_dev_type, int mt_unit_num);
+t_stat cable_mpc (int mpc_unit_num, int iom_unit_num, int chan_num);
+#endif
 
 /* dps8_mt.c */
 
 void mt_init(void);
 int mt_iom_cmd(chan_devinfo* devinfop);
 int mt_iom_io(int iom_unit_num, int chan, t_uint64 *wordp, int* majorp, int* subp);
+t_stat cable_mt (int mt_unit_num, int iom_unit_num, int chan_num, int dev_code);
+int get_mt_numunits (void);
 
 /* dps8_scu.c */
 

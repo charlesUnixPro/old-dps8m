@@ -365,17 +365,6 @@ t_stat dpsCmd_Segments (int32 arg, char *buf)
     return SCPE_ARG;
 }
 
-CTAB dps8_cmds[] =
-{
-    {"DPSINIT", dpsCmd_Init,        0, "dpsinit dps8/m initialize stuff ...\n"},
-    {"DPSDUMP", dpsCmd_Dump,        0, "dpsdump dps8/m dump stuff ...\n"},
-    {"SEGMENT", dpsCmd_Segment,     0, "segment dps8/m segment stuff ...\n"},
-    {"SEGMENTS", dpsCmd_Segments,   0, "segments dps8/m segments stuff ...\n"},
-    
-    { NULL, NULL, 0, NULL}
-};
-
-
 /*! Reset routine */
 t_stat cpu_reset_mm (DEVICE *dptr)
 {
